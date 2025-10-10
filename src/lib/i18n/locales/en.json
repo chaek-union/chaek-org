@@ -1,0 +1,19 @@
+{
+	"app": {
+		"title": "Chaek",
+		"subtitle": "Open Source University Textbook Platform"
+	},
+	"nav": {
+		"home": "Home",
+		"backToList": "Back to list"
+	},
+	"books": {
+		"title": "Textbooks",
+		"empty": "No textbooks available yet.",
+		"lastUpdated": "Last updated"
+	},
+	"language": {
+		"korean": "한국어",
+		"english": "English"
+	}
+}

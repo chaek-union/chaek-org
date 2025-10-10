@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    container_name: chaek-app
+    ports:
+      - "8513:3000"
+    volumes:
+      - ./books:/app/books
+      - ./static/books:/app/static/books
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

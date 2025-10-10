@@ -1,0 +1,19 @@
+{
+	"app": {
+		"title": "책",
+		"subtitle": "오픈소스 대학 교재 플랫폼"
+	},
+	"nav": {
+		"home": "홈",
+		"backToList": "목록으로 돌아가기"
+	},
+	"books": {
+		"title": "교재 목록",
+		"empty": "아직 등록된 교재가 없습니다.",
+		"lastUpdated": "마지막 업데이트"
+	},
+	"language": {
+		"korean": "한국어",
+		"english": "English"
+	}
+}
