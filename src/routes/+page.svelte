@@ -2,7 +2,6 @@
 	import type { PageData } from './$types';
 	import { t } from '$lib/i18n';
 	import Navbar from '$lib/components/Navbar.svelte';
-	import BottomBar from '$lib/components/BottomBar.svelte';
 	import BookCard from '$lib/components/BookCard.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -47,8 +46,6 @@
 	</section>
 </main>
 
-<BottomBar {data} />
-
 <style>
 	:global(body) {
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
@@ -60,7 +57,7 @@
 	main {
 		width: 100%;
 		min-height: calc(100vh - 70px);
-		padding-bottom: 5rem;
+		padding-bottom: 6rem;
 	}
 
 	.hero {
