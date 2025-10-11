@@ -54,29 +54,28 @@ const { handle: authHandle } = SvelteKitAuth({
 		async signIn({ user, account, profile }) {
 			if (!account?.access_token || !profile) return false;
 
-			const githubId = Number(profile.id);
+			const githubId = String(profile.id);
 			const username = profile.login as string;
 			const avatarUrl = profile.avatar_url as string;
 
-			// Check organization membership
+			// Check organization membership - reject if not a member
 			const isMember = await isChaekMember(account.access_token, username);
+			if (!isMember) {
+				return false;
+			}
 
-			// Store/update user in database
-			await upsertUser(githubId, username, avatarUrl, isMember);
+			// Store/update user in database (only for members)
+			await upsertUser(githubId, username, avatarUrl, true);
 
 			return true;
 		},
 		async session({ session, token }) {
 			if (token?.sub) {
 				// Add GitHub ID to session
-				const githubId = Number(token.sub);
+				const githubId = String(token.sub);
 				(session.user as any).githubId = githubId;
-
-				// Fetch user from database to get membership status
-				const dbUser = await getUserByGithubId(githubId);
-				if (dbUser) {
-					(session.user as any).isChaekMember = dbUser.is_chaek_member;
-				}
+				// All authenticated users are chaek-union members
+				(session.user as any).isChaekMember = true;
 			}
 			return session;
 		}

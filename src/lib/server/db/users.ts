@@ -2,7 +2,7 @@ import { query, queryOne } from './index.js';
 
 export interface User {
 	id: number;
-	github_id: number;
+	github_id: string;
 	username: string;
 	avatar_url: string | null;
 	is_chaek_member: boolean;
@@ -14,7 +14,7 @@ export interface User {
  * Create or update user
  */
 export async function upsertUser(
-	githubId: number,
+	githubId: string,
 	username: string,
 	avatarUrl: string | null,
 	isChaekMember: boolean
@@ -37,7 +37,7 @@ export async function upsertUser(
 /**
  * Get user by GitHub ID
  */
-export async function getUserByGithubId(githubId: number): Promise<User | null> {
+export async function getUserByGithubId(githubId: string): Promise<User | null> {
 	return queryOne<User>('SELECT * FROM users WHERE github_id = $1', [githubId]);
 }
 

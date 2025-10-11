@@ -11,7 +11,7 @@ export interface BuildLog {
 	stdout: string | null;
 	stderr: string | null;
 	error_message: string | null;
-	triggered_by: number | null;
+	triggered_by: string | null;
 }
 
 /**
@@ -21,7 +21,7 @@ export async function createBuildLog(
 	bookId: string,
 	bookName: string,
 	repoUrl: string,
-	triggeredBy?: number
+	triggeredBy?: string
 ): Promise<BuildLog> {
 	const result = await queryOne<BuildLog>(
 		`INSERT INTO build_logs (book_id, book_name, repo_url, status, triggered_by)

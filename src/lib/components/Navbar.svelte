@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
-	import { signIn, signOut } from '@auth/sveltekit/client';
 
 	let { data } = $props();
 
 	const session = $derived(data?.session);
-	const user = $derived(session?.user);
-	const isChaekMember = $derived((user as any)?.isChaekMember);
+	const isChaekMember = $derived((session?.user as any)?.isChaekMember);
 </script>
 
 <nav class="navbar">
@@ -19,13 +17,6 @@
 		<div class="navbar-actions">
 			{#if isChaekMember}
 				<a href="/builds" class="nav-link">{$t('nav.builds')}</a>
-				<div class="user-menu">
-					<img src={(user as any).image} alt={user.name || ''} class="user-avatar" />
-					<span class="user-name">{user.name}</span>
-					<button class="btn-signout" onclick={() => signOut()}>
-						{$t('auth.signOut')}
-					</button>
-				</div>
 			{/if}
 
 			<LanguageSwitcher />
@@ -97,47 +88,6 @@
 		color: #4285f4;
 	}
 
-	.user-menu {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem 1rem;
-		background: #f8f9fa;
-		border-radius: 8px;
-		border: 1px solid #e0e0e0;
-	}
-
-	.user-avatar {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		object-fit: cover;
-	}
-
-	.user-name {
-		font-weight: 500;
-		color: #333;
-		font-size: 0.9rem;
-	}
-
-	.btn-signout {
-		background: white;
-		border: 1px solid #e0e0e0;
-		color: #666;
-		cursor: pointer;
-		padding: 0.4rem 0.75rem;
-		border-radius: 6px;
-		font-size: 0.85rem;
-		font-weight: 500;
-		transition: all 0.2s;
-	}
-
-	.btn-signout:hover {
-		background: #ff4444;
-		color: white;
-		border-color: #ff4444;
-	}
-
 	@media (max-width: 768px) {
 		.navbar-container {
 			padding: 0.75rem 1rem;
@@ -149,10 +99,6 @@
 
 		.brand-icon {
 			font-size: 1.5rem;
-		}
-
-		.user-name {
-			display: none;
 		}
 
 		.navbar-actions {
