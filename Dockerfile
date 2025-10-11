@@ -19,8 +19,8 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 
-RUN mkdir -p /app/books /app/static/books && \
-    chown -R node:node /app/books /app/static/books
+RUN mkdir -p /app/books && \
+    chown -R node:node /app/books
 
 USER node
 

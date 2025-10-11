@@ -22,7 +22,6 @@ services:
       - "8513:3000"
     volumes:
       - ./books:/app/books
-      - ./static/books:/app/static/books
     restart: unless-stopped
     depends_on:
       db:
