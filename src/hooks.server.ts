@@ -87,49 +87,58 @@ const { handle: authHandle } = SvelteKitAuth({
 const staticFileHandle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
-	// Serve files from static/books directory
-	if (pathname.startsWith('/books/')) {
-		// Extract the path after /books/
-		const bookPath = pathname.slice(7); // Remove '/books/'
-		const filePath = path.join(process.cwd(), 'static', 'books', bookPath);
+	// Serve assets from books directory (e.g., /books/{bookId}/assets/...)
+	if (pathname.startsWith('/books/') && pathname.includes('/assets/')) {
+		// Extract book ID and asset path
+		const match = pathname.match(/^\/books\/([^\/]+)\/(.+)$/);
+		if (match) {
+			const [, bookId, assetPath] = match;
 
-		try {
-			// Check if file exists
-			const stats = await fs.promises.stat(filePath);
+			// Import getBookRoot dynamically
+			const { getBookRoot } = await import('$lib/server/summary-parser');
+			const bookRoot = await getBookRoot(bookId);
 
-			if (stats.isFile()) {
-				const content = await fs.promises.readFile(filePath);
+			const filePath = path.join(bookRoot, assetPath);
 
-				// Determine content type based on file extension
-				const ext = path.extname(filePath).toLowerCase();
-				const contentTypes: Record<string, string> = {
-					'.html': 'text/html',
-					'.css': 'text/css',
-					'.js': 'application/javascript',
-					'.json': 'application/json',
-					'.png': 'image/png',
-					'.jpg': 'image/jpeg',
-					'.jpeg': 'image/jpeg',
-					'.gif': 'image/gif',
-					'.svg': 'image/svg+xml',
-					'.ico': 'image/x-icon',
-					'.woff': 'font/woff',
-					'.woff2': 'font/woff2',
-					'.ttf': 'font/ttf',
-					'.eot': 'application/vnd.ms-fontobject'
-				};
+			try {
+				// Check if file exists
+				const stats = await fs.promises.stat(filePath);
 
-				const contentType = contentTypes[ext] || 'application/octet-stream';
+				if (stats.isFile()) {
+					const content = await fs.promises.readFile(filePath);
 
-				return new Response(content, {
-					headers: {
-						'Content-Type': contentType,
-						'Cache-Control': 'public, max-age=3600'
-					}
-				});
+					// Determine content type based on file extension
+					const ext = path.extname(filePath).toLowerCase();
+					const contentTypes: Record<string, string> = {
+						'.html': 'text/html',
+						'.css': 'text/css',
+						'.js': 'application/javascript',
+						'.json': 'application/json',
+						'.png': 'image/png',
+						'.jpg': 'image/jpeg',
+						'.jpeg': 'image/jpeg',
+						'.gif': 'image/gif',
+						'.svg': 'image/svg+xml',
+						'.ico': 'image/x-icon',
+						'.woff': 'font/woff',
+						'.woff2': 'font/woff2',
+						'.ttf': 'font/ttf',
+						'.eot': 'application/vnd.ms-fontobject',
+						'.webp': 'image/webp'
+					};
+
+					const contentType = contentTypes[ext] || 'application/octet-stream';
+
+					return new Response(content, {
+						headers: {
+							'Content-Type': contentType,
+							'Cache-Control': 'public, max-age=3600'
+						}
+					});
+				}
+			} catch (error) {
+				// File not found or error reading, continue to default handler
 			}
-		} catch (error) {
-			// File not found or error reading, continue to default handler
 		}
 	}
 

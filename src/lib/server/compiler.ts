@@ -1,8 +1,9 @@
-import { spawn } from 'child_process';
 import { simpleGit } from 'simple-git';
 import fs from 'fs/promises';
 import path from 'path';
+import lunr from 'lunr';
 import { createBuildLog, updateBuildLog } from './db/builds.js';
+import { parseSummary, getBookRoot, getFilePaths } from './summary-parser.js';
 
 const BOOKS_DIR = path.join(process.cwd(), 'books');
 const STATIC_BOOKS_DIR = path.join(process.cwd(), 'static', 'books');
@@ -36,70 +37,106 @@ async function syncRepository(repoName: string, repoUrl: string): Promise<void> 
 }
 
 /**
- * Compile a HonKit book
+ * Build Lunr search index for a book
  */
-async function compileBook(
-	repoName: string,
-	buildId: number
-): Promise<CompilationResult> {
-	const repoPath = path.join(BOOKS_DIR, repoName);
-	const outputPath = path.join(STATIC_BOOKS_DIR, repoName);
+async function buildSearchIndex(repoName: string, buildId: number): Promise<CompilationResult> {
+	try {
+		console.log(`Building search index for ${repoName}...`);
 
-	return new Promise((resolve) => {
-		console.log(`Compiling ${repoName}...`);
+		// Get navigation and file paths
+		const navigation = await parseSummary(repoName);
+		const filePaths = getFilePaths(navigation);
+		const bookRoot = await getBookRoot(repoName);
 
-		// Run npx honkit build
-		const buildProcess = spawn('npx', ['honkit', 'build', '.', outputPath], {
-			cwd: repoPath,
-			shell: true
-		});
+		console.log(`Found ${filePaths.length} files to index`);
 
-		let stdout = '';
-		let stderr = '';
+		// Build documents for search
+		const documents = await Promise.all(
+			filePaths.map(async (filePath) => {
+				try {
+					const fullPath = path.join(bookRoot, filePath);
+					const content = await fs.readFile(fullPath, 'utf-8');
 
-		buildProcess.stdout?.on('data', (data) => {
-			stdout += data.toString();
-			console.log(`[${repoName}] ${data}`);
-		});
+					// Remove markdown syntax for better search
+					const cleanContent = content
+						.replace(/^#+\s+/gm, '') // Remove headers
+						.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
+						.replace(/[*_`]/g, '') // Remove emphasis markers
+						.replace(/!\[[^\]]*\]\([^)]+\)/g, ''); // Remove images
 
-		buildProcess.stderr?.on('data', (data) => {
-			stderr += data.toString();
-			console.error(`[${repoName}] ${data}`);
-		});
+					// Extract title from first heading or filename
+					const titleMatch = content.match(/^#\s+(.+)$/m);
+					const title =
+						titleMatch?.[1] || filePath.split('/').pop()?.replace('.md', '') || filePath;
 
-		buildProcess.on('close', async (code) => {
-			if (code === 0) {
-				await updateBuildLog(buildId, 'success', stdout, stderr);
-				resolve({
-					success: true,
-					message: `Successfully compiled ${repoName}`,
-					buildId
-				});
-			} else {
-				await updateBuildLog(buildId, 'failed', stdout, stderr, `Build exited with code ${code}`);
-				resolve({
-					success: false,
-					message: `Failed to compile ${repoName}`,
-					error: stderr || stdout,
-					buildId
-				});
-			}
-		});
+					return {
+						id: filePath,
+						path: filePath,
+						title,
+						content: cleanContent
+					};
+				} catch (err) {
+					console.error(`Error reading ${filePath}:`, err);
+					return null;
+				}
+			})
+		);
 
-		buildProcess.on('error', async (error) => {
-			await updateBuildLog(buildId, 'failed', stdout, stderr, error.message);
-			resolve({
-				success: false,
-				message: `Failed to compile ${repoName}`,
-				error: error.message,
-				buildId
+		// Filter out failed reads
+		const validDocuments = documents.filter((doc) => doc !== null);
+
+		console.log(`Successfully indexed ${validDocuments.length} documents`);
+
+		// Build Lunr index
+		const idx = lunr(function () {
+			this.ref('id');
+			this.field('title', { boost: 10 });
+			this.field('content');
+
+			validDocuments.forEach((doc) => {
+				this.add(doc);
 			});
 		});
-	});
+
+		// Save index to books directory
+		const indexPath = path.join(bookRoot, 'search-index.json');
+		await fs.writeFile(
+			indexPath,
+			JSON.stringify({
+				index: idx,
+				documents: validDocuments.map((doc) => ({
+					id: doc.id,
+					path: doc.path,
+					title: doc.title
+				}))
+			})
+		);
+
+		const stdout = `Successfully built search index with ${validDocuments.length} documents`;
+		await updateBuildLog(buildId, 'success', stdout, '');
+
+		return {
+			success: true,
+			message: `Successfully built search index for ${repoName}`,
+			buildId
+		};
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		console.error(`Error building search index for ${repoName}:`, errorMessage);
+
+		await updateBuildLog(buildId, 'failed', '', '', errorMessage);
+
+		return {
+			success: false,
+			message: `Failed to build search index for ${repoName}`,
+			error: errorMessage,
+			buildId
+		};
+	}
 }
 
 /**
- * Process a book: clone/update and compile
+ * Process a book: clone/update and build search index
  */
 export async function processBook(
 	repoName: string,
@@ -120,8 +157,8 @@ export async function processBook(
 		// Sync repository
 		await syncRepository(repoName, repoUrl);
 
-		// Compile book
-		const result = await compileBook(repoName, buildId);
+		// Build search index
+		const result = await buildSearchIndex(repoName, buildId);
 
 		return result;
 	} catch (error) {

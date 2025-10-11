@@ -24,4 +24,3 @@ vite.config.ts.timestamp-*
 
 # Books data
 books/
-static/books/

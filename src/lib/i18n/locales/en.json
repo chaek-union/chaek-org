@@ -47,5 +47,11 @@
 	"language": {
 		"korean": "한국어",
 		"english": "English"
+	},
+	"book": {
+		"search": "Search...",
+		"searchResults": "Search Results",
+		"noResults": "No results found",
+		"introduction": "Introduction"
 	}
 }

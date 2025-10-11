@@ -8,8 +8,8 @@ export interface Book {
 	lastUpdated?: Date;
 }
 
-const BOOKS_DIR = path.join(process.cwd(), 'books');
-const STATIC_BOOKS_DIR = path.join(process.cwd(), 'static', 'books');
+export const BOOKS_DIR = path.join(process.cwd(), 'books');
+export const STATIC_BOOKS_DIR = path.join(process.cwd(), 'static', 'books');
 
 /**
  * Get list of all available books
@@ -26,17 +26,29 @@ export async function getBooks(): Promise<Book[]> {
 				const bookPath = path.join(BOOKS_DIR, entry.name);
 				const stats = await fs.stat(bookPath);
 
-				// Check if compiled book exists
-				const compiledPath = path.join(STATIC_BOOKS_DIR, entry.name, 'index.html');
-				let isCompiled = false;
+				// Check if SUMMARY.md exists (valid book)
+				const summaryPath = path.join(bookPath, 'SUMMARY.md');
+				let bookJsonPath = path.join(bookPath, 'book.json');
+
+				// Try to find SUMMARY.md in book root or docs subdirectory
+				let hasValidStructure = false;
 				try {
-					await fs.access(compiledPath);
-					isCompiled = true;
+					await fs.access(summaryPath);
+					hasValidStructure = true;
 				} catch {
-					// Book not yet compiled
+					// Check if book.json defines a root directory
+					try {
+						const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
+						const root = bookJson.root || '.';
+						const altSummaryPath = path.join(bookPath, root, 'SUMMARY.md');
+						await fs.access(altSummaryPath);
+						hasValidStructure = true;
+					} catch {
+						// Book not valid
+					}
 				}
 
-				if (isCompiled) {
+				if (hasValidStructure) {
 					books.push({
 						id: entry.name,
 						name: entry.name.replace(/-/g, ' '),

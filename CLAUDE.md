@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 
-이 프로젝트는 대학 교재를 호스팅하는 SvelteKit 기반 웹 플랫폼입니다. GitHub의 HonKit 기반 저장소를 자동으로 빌드하고 서빙하며, GitHub OAuth 인증과 빌드 로그 관리 기능을 제공합니다.
+이 프로젝트는 대학 교재를 호스팅하는 SvelteKit 기반 웹 플랫폼입니다. GitHub 저장소에서 Markdown 기반 교재를 직접 렌더링하고 Lunr 검색 인덱스를 제공합니다.
 
 ## 핵심 아키텍처
 
@@ -11,9 +11,12 @@
   - `+page.svelte` - 메인 페이지 (교재 목록)
   - `+layout.server.ts` - 세션 정보 로드
   - `books/[bookId]/` - 개별 교재 뷰어
+    - `+page.svelte` - Markdown 렌더링 및 네비게이션
+    - `+page.server.ts` - Markdown 파일 로드 및 mdsvex 컴파일
   - `builds/` - 빌드 로그 페이지 (chaek-union 멤버 전용)
   - `api/webhook/` - GitHub webhook 엔드포인트
-  - `api/builds/` - 빌드 로그 API 엔드포인트
+  - `api/books/[bookId]/search/` - Lunr 검색 API
+  - `api/builds/` - 빌드 로그 API
 - `src/lib/server/` - 서버 전용 모듈
   - `db/` - PostgreSQL 데이터베이스 모듈
     - `index.ts` - DB 연결 및 쿼리 헬퍼
@@ -21,14 +24,17 @@
     - `builds.ts` - 빌드 로그 관리
     - `schema.sql` - DB 스키마 정의
   - `books.ts` - 교재 목록 및 메타데이터 관리
-  - `compiler.ts` - Git 클론 및 HonKit 빌드 로직 (빌드 로그 DB 저장)
+  - `compiler.ts` - Git 클론 및 Lunr 인덱스 빌드 (빌드 로그 DB 저장)
+  - `summary-parser.ts` - SUMMARY.md 파싱 및 네비게이션 생성
 - `src/lib/components/` - Svelte 컴포넌트
-  - `Navbar.svelte` - 네비게이션 바 (로그인/로그아웃, 빌드 로그 링크)
+  - `Navbar.svelte` - 네비게이션 바
   - `LanguageSwitcher.svelte` - 드롭다운 언어 선택기
   - `BookCard.svelte` - 교재 카드 컴포넌트
-- `src/hooks.server.ts` - Auth.js 인증 및 정적 파일 서빙
+  - `BottomBar.svelte` - 하단 바 (관리자 로그인)
+- `src/hooks.server.ts` - Auth.js 인증 및 정적 파일 서빙 (assets)
 - `books/` - 클론된 Git 저장소 (gitignored)
-- `static/books/` - 컴파일된 정적 HTML (gitignored)
+- `static/books/` - 생성된 Lunr 검색 인덱스 (gitignored)
+- `static/book-viewer.css` - 교재 뷰어 전용 CSS
 
 ### 주요 플로우
 
@@ -38,27 +44,36 @@
    - `chaek-union` 조직 멤버십 확인 (Octokit API 사용)
    - 사용자 정보를 PostgreSQL에 저장/업데이트
 
-2. **GitHub Webhook → 자동 빌드**
+2. **GitHub Webhook → Lunr 인덱스 빌드**
    - `chaek-union` 조직의 저장소에서 push 발생
    - `/api/webhook` 엔드포인트가 이벤트 수신
    - `compiler.ts`가 빌드 로그 생성 (DB)
    - 저장소 클론/업데이트
-   - `npx honkit build` 실행하여 `static/books/{repo-name}/`에 출력
-   - 빌드 결과(stdout, stderr, 상태)를 DB에 저장
+   - `SUMMARY.md` 파싱하여 모든 Markdown 파일 수집
+   - Lunr 검색 인덱스 생성하여 `static/books/{repo-name}/search-index.json`에 저장
+   - 빌드 결과를 DB에 저장
 
 3. **교재 목록 표시**
    - `books.ts`가 `books/` 디렉토리 스캔
-   - 컴파일된 교재만 목록에 표시
+   - `SUMMARY.md` 또는 `book.json`이 있는 교재만 목록에 표시
    - 한국어/영어 다국어 지원
 
 4. **교재 읽기**
-   - `/books/{bookId}` 라우트로 접근
-   - iframe으로 `/books/{bookId}/index.html` 로드
+   - `/books/{bookId}?path={file.md}` 라우트로 접근
+   - `+page.server.ts`에서 Markdown 파일을 읽고 mdsvex로 HTML 컴파일
+   - 상대 경로 이미지/링크를 절대 경로로 재작성
+   - 사이드바에 SUMMARY.md 기반 네비게이션 표시
+   - 클릭 시 SvelteKit `goto()`로 페이지 전환 (URL 업데이트)
 
-5. **빌드 로그 조회** (chaek-union 멤버 전용)
-   - `/builds` 페이지에서 모든 교재의 최신 빌드 로그 조회
-   - 빌드 클릭 시 상세 로그(stdout, stderr) 모달로 표시
-   - `/api/builds` API로 빌드 로그 조회
+5. **검색 기능**
+   - 사이드바 검색창에서 검색어 입력
+   - `/api/books/[bookId]/search?q={query}` API 호출
+   - Lunr 인덱스를 사용한 전문 검색 (와일드카드 및 퍼지 매칭 지원)
+   - 검색 결과 클릭 시 해당 페이지로 이동
+
+6. **빌드 로그 조회** (chaek-union 멤버 전용)
+   - `/builds` 페이지에서 모든 교재의 빌드 로그 조회
+   - 빌드 클릭 시 상세 로그 표시
 
 ## 기술 스택
 
@@ -66,7 +81,8 @@
 - **백엔드**: Node.js (SvelteKit API routes)
 - **데이터베이스**: PostgreSQL 16 (Docker Compose로 제공)
 - **인증**: Auth.js (GitHub OAuth)
-- **빌드**: HonKit (GitBook fork)
+- **Markdown 처리**: mdsvex, markdown-it, rehype-slug, rehype-autolink-headings
+- **검색**: Lunr.js
 - **Git**: simple-git 라이브러리
 - **i18n**: 커스텀 i18n 구현 (브라우저 언어 자동 감지)
 
@@ -111,17 +127,35 @@
 - Secret 검증은 사용하지 않음 (조직 검증만 수행)
 - 모든 push 이벤트는 로그에 기록됨
 
-### 빌드 프로세스
-- HonKit 빌드는 비동기로 실행 (webhook 응답을 블로킹하지 않음)
+### 빌드 프로세스 (변경됨: HonKit → Lunr)
+- **이전**: HonKit으로 정적 HTML 빌드
+- **현재**: Lunr 검색 인덱스만 빌드
+- 빌드는 비동기로 실행 (webhook 응답을 블로킹하지 않음)
 - 빌드 시작 시 DB에 로그 생성 (status: 'running')
+- `SUMMARY.md` 파싱하여 모든 Markdown 파일 수집
+- 각 파일을 읽고 Lunr 인덱스에 추가
+- `static/books/{book-id}/search-index.json`에 인덱스 저장
 - 빌드 완료 시 stdout/stderr와 함께 상태 업데이트
-- 빌드는 `npx honkit build` 명령어 사용 (각 저장소의 로컬 의존성 사용)
-- chaek-union 멤버는 `/builds` 페이지에서 모든 빌드 로그 조회 가능
+
+### Markdown 렌더링
+- 서버 측에서 mdsvex를 사용하여 Markdown을 HTML로 컴파일
+- 상대 경로 이미지(`../assets/images/file.png`)를 절대 경로로 재작성
+- 자산(assets) 파일은 `hooks.server.ts`의 정적 파일 핸들러로 서빙
+- `book.json`의 `root` 속성을 확인하여 올바른 경로 사용
 
 ### 교재 저장소 요구사항
-- HonKit 프로젝트 구조 (`book.json` 또는 `SUMMARY.md`)
-- `npx honkit build` 명령어로 빌드 가능해야 함
+- `SUMMARY.md` 필수 (GitBook/HonKit 형식)
+- `book.json` 선택사항 (root 디렉토리 지정 가능)
+- Markdown 파일 (`.md`)로 구성
 - `chaek-union` GitHub 조직에 속해야 함
+
+### book.json 형식
+```json
+{
+  "title": "교재 제목",
+  "root": "./docs"  // 선택사항, 기본값 "."
+}
+```
 
 ## 일반적인 작업
 
@@ -147,25 +181,26 @@
 - 상단 고정 네비게이션 바
 - 그라디언트 히어로 섹션
 - 반응형 교재 카드 그리드
-- 교재 카드 호버 애니메이션
+- 하단 바 (관리자 로그인)
 
-### 네비게이션
-- 드롭다운 언어 선택기 (🌐 아이콘)
-- GitHub 로그인 버튼 (비로그인 시)
-- 사용자 메뉴 (로그인 시): 아바타, 이름, 로그아웃
-- 빌드 로그 링크 (chaek-union 멤버만)
+### 교재 뷰어
+- 왼쪽 사이드바: SUMMARY.md 기반 네비게이션 + 검색
+- 오른쪽 메인 영역: Markdown 콘텐츠
+- 커스텀 스타일링 (`/static/book-viewer.css`)
+- 링크 클릭 시 SvelteKit 네비게이션 (URL 업데이트)
 
-### 빌드 로그 페이지
-- 테이블 형식으로 빌드 목록 표시
-- 상태별 색상 구분 (running/success/failed)
-- 빌드 클릭 시 모달로 상세 로그 표시
-- stdout/stderr 구분하여 표시
+### 검색 기능
+- 실시간 검색 (300ms 디바운스)
+- Lunr 인덱스 기반 전문 검색
+- 와일드카드 및 퍼지 매칭 지원
+- 검색 결과 클릭 시 해당 페이지로 이동
 
 ## 알려진 제약사항
 
 1. 교재는 반드시 `chaek-union` 조직에 속해야 함
 2. 교재 메타데이터는 파일시스템 기반 (book.json 파싱)
 3. 동시 빌드 시 충돌 가능성 (락 메커니즘 없음)
+4. 검색 인덱스는 빌드 시에만 업데이트됨 (실시간 아님)
 
 ## 기여 가이드라인
 
