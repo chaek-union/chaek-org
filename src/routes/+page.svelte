@@ -39,6 +39,7 @@
 						name={book.name}
 						description={book.description}
 						lastUpdated={book.lastUpdated}
+						hasPdf={book.hasPdf}
 					/>
 				{/each}
 			</div>

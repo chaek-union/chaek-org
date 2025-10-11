@@ -8,7 +8,7 @@
 	let { data }: { data: PageData } = $props();
 
 	let searchQuery = $state('');
-	let searchResults = $state<Array<{ path: string; title: string; score: number }>>([]);
+	let searchResults = $state<Array<{ path: string; title: string; chapter: string; score: number }>>([]);
 	let isSearching = $state(false);
 	let highlightTerms = $state<string[]>([]);
 	let currentHighlightIndex = $state(0);
@@ -17,6 +17,8 @@
 	let sidebarOpen = $state(false);
 
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+	let searchIndex: any = null;
+	let searchDocuments: any[] = [];
 
 	function toggleSidebar() {
 		sidebarOpen = !sidebarOpen;
@@ -56,6 +58,33 @@
 		}
 	});
 
+	// Load search index on mount
+	$effect(() => {
+		loadSearchIndex();
+	});
+
+	async function loadSearchIndex() {
+		try {
+			const response = await fetch(`/books/${data.book.id}/search-index.json`);
+
+			if (!response.ok) {
+				console.warn('Search index not available. Please contact admin to trigger a build.');
+				return;
+			}
+
+			const indexData = await response.json();
+
+			// Import lunr dynamically
+			const lunr = (await import('lunr')).default;
+
+			// Load the pre-built index
+			searchIndex = lunr.Index.load(indexData.index);
+			searchDocuments = indexData.documents || [];
+		} catch (err) {
+			console.error('Failed to load search index:', err);
+		}
+	}
+
 	async function handleSearch() {
 		if (!searchQuery.trim()) {
 			searchResults = [];
@@ -70,11 +99,30 @@
 		searchTimeout = setTimeout(async () => {
 			isSearching = true;
 			try {
-				const response = await fetch(
-					`/api/books/${data.book.id}/search?q=${encodeURIComponent(searchQuery)}`
-				);
-				const result = await response.json();
-				searchResults = result.results || [];
+				if (!searchIndex) {
+					await loadSearchIndex();
+				}
+
+				if (!searchIndex) {
+					throw new Error('Search index not loaded');
+				}
+
+				// Perform client-side search with Lunr using wildcards for partial matching
+				// Add wildcard to each term for fuzzy matching
+				const terms = searchQuery.trim().split(/\s+/).filter(Boolean);
+				const wildcardQuery = terms.map(term => `*${term}*`).join(' ');
+				const results = searchIndex.search(wildcardQuery);
+
+				// Map results to our format
+				searchResults = results.map((result: any) => {
+					const doc = searchDocuments.find((d: any) => d.id === result.ref);
+					return {
+						path: result.ref,
+						title: doc?.title || result.ref,
+						chapter: doc?.chapter || '',
+						score: result.score
+					};
+				}).slice(0, 10); // Limit to top 10 results
 
 				// Extract search terms for highlighting
 				highlightTerms = searchQuery.trim().split(/\s+/).filter(Boolean);
@@ -285,7 +333,6 @@
 <svelte:head>
 	<title>{pageTitle}</title>
 	<link rel="stylesheet" href="/book-viewer.css" />
-	<base href="/books/{data.book.id}/" />
 </svelte:head>
 
 <div class="container">

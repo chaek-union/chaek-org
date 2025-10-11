@@ -54,7 +54,7 @@ export const load: PageServerLoad = async ({ params }) => {
 				htmlContent = result.code;
 			}
 
-			// Rewrite relative paths to be absolute from book root
+			// Rewrite relative paths to be absolute URLs with /books/{bookId}/ prefix
 			// Get the directory of the current page
 			const pageDir = path.dirname(pagePath);
 
@@ -63,13 +63,14 @@ export const load: PageServerLoad = async ({ params }) => {
 				/(<img[^>]+src=["'])([^"']+)(["'][^>]*>)/g,
 				(match, prefix, src, suffix) => {
 					// Skip absolute URLs and data URIs
-					if (src.startsWith('http') || src.startsWith('//') || src.startsWith('data:')) {
+					if (src.startsWith('http') || src.startsWith('//') || src.startsWith('data:') || src.startsWith('/')) {
 						return match;
 					}
 
-					// Resolve relative path from page directory
-					const absolutePath = path.join(pageDir, src).replace(/\\/g, '/');
-					return `${prefix}${absolutePath}${suffix}`;
+					// Resolve relative path from page directory and make it an absolute URL
+					const relativePath = path.join(pageDir, src).replace(/\\/g, '/');
+					const absoluteUrl = `/books/${params.bookId}/${relativePath}`;
+					return `${prefix}${absoluteUrl}${suffix}`;
 				}
 			);
 
@@ -80,8 +81,9 @@ export const load: PageServerLoad = async ({ params }) => {
 					if (href.startsWith('http') || href.startsWith('//') || href.startsWith('/')) {
 						return match;
 					}
-					const absolutePath = path.join(pageDir, href).replace(/\\/g, '/');
-					return `${prefix}${absolutePath}${suffix}`;
+					const relativePath = path.join(pageDir, href).replace(/\\/g, '/');
+					const absoluteUrl = `/books/${params.bookId}/${relativePath}`;
+					return `${prefix}${absoluteUrl}${suffix}`;
 				}
 			);
 		}

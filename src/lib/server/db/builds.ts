@@ -37,20 +37,14 @@ export async function createBuildLog(
  */
 export async function updateBuildLog(
 	buildId: number,
-	status: 'success' | 'failed',
-	stdout?: string,
-	stderr?: string,
-	errorMessage?: string
+	status: 'success' | 'failed'
 ): Promise<void> {
 	await query(
 		`UPDATE build_logs
 		SET status = $1,
-			completed_at = CURRENT_TIMESTAMP,
-			stdout = $2,
-			stderr = $3,
-			error_message = $4
-		WHERE id = $5`,
-		[status, stdout || null, stderr || null, errorMessage || null, buildId]
+			completed_at = CURRENT_TIMESTAMP
+		WHERE id = $2`,
+		[status, buildId]
 	);
 }
 

@@ -149,3 +149,37 @@ export function getFilePaths(navItems: NavItem[]): string[] {
 	traverse(navItems);
 	return paths;
 }
+
+/**
+ * Get file paths with their chapter breadcrumbs from navigation
+ */
+export function getFilePathsWithChapters(navItems: NavItem[]): Array<{ path: string; chapter: string }> {
+	const result: Array<{ path: string; chapter: string }> = [];
+
+	function traverse(items: NavItem[], breadcrumb: string[] = []) {
+		for (const item of items) {
+			// Skip headers when building breadcrumb, but process their children
+			if (item.isHeader) {
+				const headerTitle = item.title;
+				if (item.children) {
+					traverse(item.children, [...breadcrumb, headerTitle]);
+				}
+			} else if (item.path) {
+				// For regular items, add to breadcrumb
+				const currentBreadcrumb = [...breadcrumb, item.title];
+				result.push({
+					path: item.path,
+					chapter: currentBreadcrumb.join(' > ')
+				});
+
+				// Traverse children with updated breadcrumb
+				if (item.children) {
+					traverse(item.children, currentBreadcrumb);
+				}
+			}
+		}
+	}
+
+	traverse(navItems);
+	return result;
+}

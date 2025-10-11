@@ -69,11 +69,17 @@ const { handle: authHandle } = SvelteKitAuth({
 
 			return true;
 		},
+		async jwt({ token, profile }) {
+			// Store GitHub ID in JWT token during sign in
+			if (profile?.id) {
+				token.githubId = String(profile.id);
+			}
+			return token;
+		},
 		async session({ session, token }) {
-			if (token?.sub) {
-				// Add GitHub ID to session
-				const githubId = String(token.sub);
-				(session.user as any).githubId = githubId;
+			// Add GitHub ID from token to session
+			if (token?.githubId) {
+				(session.user as any).githubId = token.githubId;
 				// All authenticated users are chaek-union members
 				(session.user as any).isChaekMember = true;
 			}
@@ -82,9 +88,50 @@ const { handle: authHandle } = SvelteKitAuth({
 	}
 });
 
+// Dev session handler - bypass auth in dev mode
+const devSessionHandle: Handle = async ({ event, resolve }) => {
+	if (env.NODE_ENV === 'development') {
+		// Override auth() to return mock session in dev mode
+		event.locals.auth = async () => ({
+			user: {
+				name: 'Dev User',
+				email: 'dev@localhost',
+				image: 'https://github.com/ghost.png',
+				githubId: 'dev-user',
+				isChaekMember: true
+			},
+			expires: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+		});
+	}
+	return resolve(event);
+};
+
 // Static file serving handler
 const staticFileHandle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
+
+	// Serve PDFs and search indexes from static/books directory
+	if (pathname.startsWith('/books/') && (pathname.endsWith('.pdf') || pathname.endsWith('search-index.json'))) {
+		const filePath = path.join(process.cwd(), 'static', pathname);
+
+		try {
+			const stats = await fs.promises.stat(filePath);
+
+			if (stats.isFile()) {
+				const content = await fs.promises.readFile(filePath);
+				const contentType = pathname.endsWith('.pdf') ? 'application/pdf' : 'application/json';
+
+				return new Response(content, {
+					headers: {
+						'Content-Type': contentType,
+						'Cache-Control': 'public, max-age=3600'
+					}
+				});
+			}
+		} catch (error) {
+			// File not found, continue to default handler
+		}
+	}
 
 	// Serve assets from books directory (e.g., /books/{bookId}/assets/...)
 	if (pathname.startsWith('/books/') && pathname.includes('/assets/')) {
@@ -146,4 +193,4 @@ const staticFileHandle: Handle = async ({ event, resolve }) => {
 };
 
 // Combine handlers
-export const handle = sequence(authHandle, staticFileHandle);
+export const handle = sequence(authHandle, devSessionHandle, staticFileHandle);

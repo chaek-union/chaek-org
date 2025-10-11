@@ -6,6 +6,7 @@ export interface Book {
 	name: string;
 	description?: string;
 	lastUpdated?: Date;
+	hasPdf?: boolean;
 }
 
 export const BOOKS_DIR = path.join(process.cwd(), 'books');
@@ -49,10 +50,21 @@ export async function getBooks(): Promise<Book[]> {
 				}
 
 				if (hasValidStructure) {
+					// Check if PDF exists
+					const pdfPath = path.join(STATIC_BOOKS_DIR, entry.name, `${entry.name}.pdf`);
+					let hasPdf = false;
+					try {
+						await fs.access(pdfPath);
+						hasPdf = true;
+					} catch {
+						// PDF doesn't exist
+					}
+
 					books.push({
 						id: entry.name,
 						name: entry.name.replace(/-/g, ' '),
-						lastUpdated: stats.mtime
+						lastUpdated: stats.mtime,
+						hasPdf
 					});
 				}
 			}

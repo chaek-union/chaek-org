@@ -15,16 +15,15 @@
     - `+page.server.ts` - Markdown 파일 로드 및 mdsvex 컴파일
   - `builds/` - 빌드 로그 페이지 (chaek-union 멤버 전용)
   - `api/webhook/` - GitHub webhook 엔드포인트
-  - `api/books/[bookId]/search/` - Lunr 검색 API
   - `api/builds/` - 빌드 로그 API
 - `src/lib/server/` - 서버 전용 모듈
   - `db/` - PostgreSQL 데이터베이스 모듈
     - `index.ts` - DB 연결 및 쿼리 헬퍼
     - `users.ts` - 사용자 관리
-    - `builds.ts` - 빌드 로그 관리
-    - `schema.sql` - DB 스키마 정의
+    - `builds.ts` - 검색 인덱스 빌드 로그 관리
+    - `pdf_builds.ts` - PDF 빌드 로그 관리
   - `books.ts` - 교재 목록 및 메타데이터 관리
-  - `compiler.ts` - Git 클론 및 Lunr 인덱스 빌드 (빌드 로그 DB 저장)
+  - `compiler.ts` - Git 클론, Lunr 인덱스 빌드, PDF 생성 (비동기)
   - `summary-parser.ts` - SUMMARY.md 파싱 및 네비게이션 생성
 - `src/lib/components/` - Svelte 컴포넌트
   - `Navbar.svelte` - 네비게이션 바
@@ -33,7 +32,9 @@
   - `BottomBar.svelte` - 하단 바 (관리자 로그인)
 - `src/hooks.server.ts` - Auth.js 인증 및 정적 파일 서빙 (assets)
 - `books/` - 클론된 Git 저장소 (gitignored)
-- `static/books/` - 생성된 Lunr 검색 인덱스 (gitignored)
+- `static/books/` - 생성된 Lunr 검색 인덱스 및 PDF 파일 (gitignored)
+  - `{bookId}/search-index.json` - 검색 인덱스
+  - `{bookId}/{bookId}.pdf` - 생성된 PDF
 - `static/book-viewer.css` - 교재 뷰어 전용 CSS
 
 ### 주요 플로우
@@ -44,34 +45,49 @@
    - `chaek-union` 조직 멤버십 확인 (Octokit API 사용)
    - 사용자 정보를 PostgreSQL에 저장/업데이트
 
-2. **GitHub Webhook → Lunr 인덱스 빌드**
+2. **GitHub Webhook → 빌드 트리거**
    - `chaek-union` 조직의 저장소에서 push 발생
    - `/api/webhook` 엔드포인트가 이벤트 수신
    - `compiler.ts`가 빌드 로그 생성 (DB)
    - 저장소 클론/업데이트
+   - 검색 인덱스 빌드 및 PDF 생성을 비동기로 시작 (Promise.all)
+
+3. **검색 인덱스 빌드 (비동기)**
    - `SUMMARY.md` 파싱하여 모든 Markdown 파일 수집
-   - Lunr 검색 인덱스 생성하여 `static/books/{repo-name}/search-index.json`에 저장
+   - 각 파일을 읽고 Lunr 인덱스에 추가
+   - 검색 인덱스를 `static/books/{bookId}/search-index.json`에 저장
    - 빌드 결과를 DB에 저장
 
-3. **교재 목록 표시**
+4. **PDF 생성 (비동기)**
+   - `SUMMARY.md` 파싱하여 모든 Markdown 파일을 순서대로 수집
+   - 모든 Markdown 파일을 하나로 결합
+   - Pandoc + XeLaTeX를 사용하여 PDF 생성
+     - 목차 자동 생성 (--toc)
+     - 섹션 번호 매기기 (-N)
+     - Unicode 지원 (xelatex)
+   - 생성된 PDF를 `static/books/{bookId}/{bookId}.pdf`에 저장
+
+5. **교재 목록 표시**
    - `books.ts`가 `books/` 디렉토리 스캔
    - `SUMMARY.md` 또는 `book.json`이 있는 교재만 목록에 표시
    - 한국어/영어 다국어 지원
 
-4. **교재 읽기**
+6. **교재 읽기**
    - `/books/{bookId}?path={file.md}` 라우트로 접근
    - `+page.server.ts`에서 Markdown 파일을 읽고 mdsvex로 HTML 컴파일
    - 상대 경로 이미지/링크를 절대 경로로 재작성
    - 사이드바에 SUMMARY.md 기반 네비게이션 표시
    - 클릭 시 SvelteKit `goto()`로 페이지 전환 (URL 업데이트)
 
-5. **검색 기능**
+7. **검색 기능 (클라이언트 사이드)**
    - 사이드바 검색창에서 검색어 입력
-   - `/api/books/[bookId]/search?q={query}` API 호출
-   - Lunr 인덱스를 사용한 전문 검색 (와일드카드 및 퍼지 매칭 지원)
+   - `/books/{bookId}/search-index.json` 정적 파일을 브라우저에서 로드
+   - 검색 인덱스가 없는 경우 자동으로 빌드 트리거 (`POST /api/books/{bookId}/build`)
+   - 브라우저에서 Lunr.js를 사용한 전문 검색 (와일드카드 및 퍼지 매칭 지원)
    - 검색 결과 클릭 시 해당 페이지로 이동
+   - 서버 부하 없이 빠른 검색 가능
 
-6. **빌드 로그 조회** (chaek-union 멤버 전용)
+8. **빌드 로그 조회** (chaek-union 멤버 전용)
    - `/builds` 페이지에서 모든 교재의 빌드 로그 조회
    - 빌드 클릭 시 상세 로그 표시
 
@@ -82,7 +98,8 @@
 - **데이터베이스**: PostgreSQL 16 (Docker Compose로 제공)
 - **인증**: Auth.js (GitHub OAuth)
 - **Markdown 처리**: mdsvex, markdown-it, rehype-slug, rehype-autolink-headings
-- **검색**: Lunr.js
+- **검색**: Lunr.js (클라이언트 사이드)
+- **PDF 생성**: Pandoc + XeLaTeX
 - **Git**: simple-git 라이브러리
 - **i18n**: 커스텀 i18n 구현 (브라우저 언어 자동 감지)
 
@@ -102,12 +119,19 @@
 - `chaek-union` 조직 멤버십 여부 저장
 
 ### build_logs 테이블
-- 빌드 로그 저장
+- 검색 인덱스 빌드 로그 저장
 - `book_id`, `book_name`, `repo_url`, `status` (running/success/failed)
 - `stdout`, `stderr`, `error_message`
 - `started_at`, `completed_at`, `triggered_by`
 
-데이터베이스 스키마는 서버 시작 시 자동으로 초기화됩니다 (`src/lib/server/db/schema.sql`).
+### pdf_builds 테이블
+- PDF 빌드 로그 저장
+- `book_id`, `book_name`, `repo_url`, `status` (running/success/failed)
+- `pdf_path` - 생성된 PDF 파일 경로 (예: `/books/{bookId}/{bookId}.pdf`)
+- `error_message`
+- `started_at`, `completed_at`, `triggered_by`
+
+데이터베이스 스키마는 서버 시작 시 자동으로 초기화됩니다 (`src/lib/server/db/index.ts`).
 
 ## 개발 시 주의사항
 
@@ -127,15 +151,25 @@
 - Secret 검증은 사용하지 않음 (조직 검증만 수행)
 - 모든 push 이벤트는 로그에 기록됨
 
-### 빌드 프로세스 (변경됨: HonKit → Lunr)
+### 빌드 프로세스
 - **이전**: HonKit으로 정적 HTML 빌드
-- **현재**: Lunr 검색 인덱스만 빌드
+- **현재**: Lunr 검색 인덱스 + PDF 생성
 - 빌드는 비동기로 실행 (webhook 응답을 블로킹하지 않음)
+- Promise.all로 검색 인덱스와 PDF를 병렬 생성
 - 빌드 시작 시 DB에 로그 생성 (status: 'running')
+
+#### 검색 인덱스 빌드
 - `SUMMARY.md` 파싱하여 모든 Markdown 파일 수집
 - 각 파일을 읽고 Lunr 인덱스에 추가
-- `static/books/{book-id}/search-index.json`에 인덱스 저장
+- `static/books/{bookId}/search-index.json`에 인덱스 저장
 - 빌드 완료 시 stdout/stderr와 함께 상태 업데이트
+
+#### PDF 생성
+- `SUMMARY.md` 파싱하여 모든 Markdown 파일을 순서대로 수집
+- 모든 Markdown 파일을 하나의 파일로 결합
+- Pandoc + XeLaTeX로 PDF 생성 (목차 포함, 섹션 번호 자동)
+- `static/books/{bookId}/{bookId}.pdf`에 저장
+- `/tmp` 디렉토리에서 빌드 후 정리
 
 ### Markdown 렌더링
 - 서버 측에서 mdsvex를 사용하여 Markdown을 HTML로 컴파일
@@ -190,8 +224,10 @@
 - 링크 클릭 시 SvelteKit 네비게이션 (URL 업데이트)
 
 ### 검색 기능
+- 클라이언트 사이드 검색 (서버 부하 없음)
 - 실시간 검색 (300ms 디바운스)
-- Lunr 인덱스 기반 전문 검색
+- Lunr.js 인덱스 기반 전문 검색
+- 정적 파일(`/books/{bookId}/search-index.json`)을 브라우저에서 로드
 - 와일드카드 및 퍼지 매칭 지원
 - 검색 결과 클릭 시 해당 페이지로 이동
 
@@ -200,7 +236,9 @@
 1. 교재는 반드시 `chaek-union` 조직에 속해야 함
 2. 교재 메타데이터는 파일시스템 기반 (book.json 파싱)
 3. 동시 빌드 시 충돌 가능성 (락 메커니즘 없음)
-4. 검색 인덱스는 빌드 시에만 업데이트됨 (실시간 아님)
+4. 검색 인덱스와 PDF는 빌드 시에만 업데이트됨 (실시간 아님)
+5. PDF 생성은 Pandoc + XeLaTeX에 의존하므로 시스템에 설치되어 있어야 함
+6. 복잡한 LaTeX 구문이나 이미지는 PDF에서 제한적으로 지원될 수 있음
 
 ## 기여 가이드라인
 

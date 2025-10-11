@@ -20,8 +20,6 @@ services:
     container_name: chaek-app
     ports:
       - "8513:3000"
-    volumes:
-      - ./books:/app/books
     restart: unless-stopped
     depends_on:
       db:
