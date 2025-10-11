@@ -1,16 +1,48 @@
 {
 	"app": {
 		"title": "책",
-		"subtitle": "오픈소스 대학 교재 플랫폼"
+		"subtitle": "오픈소스 대학 교재 플랫폼",
+		"description": "누구나 자유롭게 접근할 수 있는 고품질 대학 교재를 제공합니다."
 	},
 	"nav": {
 		"home": "홈",
-		"backToList": "목록으로 돌아가기"
+		"backToList": "목록으로 돌아가기",
+		"builds": "빌드 로그"
 	},
 	"books": {
 		"title": "교재 목록",
 		"empty": "아직 등록된 교재가 없습니다.",
-		"lastUpdated": "마지막 업데이트"
+		"lastUpdated": "마지막 업데이트",
+		"available": "개 교재"
+	},
+	"auth": {
+		"signIn": "GitHub 로그인",
+		"signOut": "로그아웃",
+		"manageBooks": "GitHub 로그인으로 교재 관리",
+		"admin": "관리"
+	},
+	"footer": {
+		"prefix": "이 웹사이트는",
+		"link": "github.com/chaek-union",
+		"suffix": "의 기여자들에 의해 관리됩니다"
+	},
+	"builds": {
+		"title": "빌드 로그",
+		"allBuilds": "모든 빌드",
+		"bookName": "교재명",
+		"status": "상태",
+		"startedAt": "시작 시간",
+		"completedAt": "완료 시간",
+		"duration": "소요 시간",
+		"viewLog": "로그 보기",
+		"running": "진행 중",
+		"success": "성공",
+		"failed": "실패",
+		"empty": "빌드 로그가 없습니다.",
+		"unauthorized": "빌드 로그를 보려면 chaek-union 멤버로 로그인해야 합니다.",
+		"stdout": "출력",
+		"stderr": "에러 출력",
+		"errorMessage": "에러 메시지"
 	},
 	"language": {
 		"korean": "한국어",

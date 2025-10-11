@@ -1,16 +1,48 @@
 {
 	"app": {
 		"title": "Chaek",
-		"subtitle": "Open Source University Textbook Platform"
+		"subtitle": "Open Source University Textbook Platform",
+		"description": "High-quality university textbooks freely accessible to everyone."
 	},
 	"nav": {
 		"home": "Home",
-		"backToList": "Back to list"
+		"backToList": "Back to list",
+		"builds": "Build Logs"
 	},
 	"books": {
 		"title": "Textbooks",
 		"empty": "No textbooks available yet.",
-		"lastUpdated": "Last updated"
+		"lastUpdated": "Last updated",
+		"available": "available"
+	},
+	"auth": {
+		"signIn": "Sign in with GitHub",
+		"signOut": "Sign out",
+		"manageBooks": "Manage Books via GitHub Login",
+		"admin": "Admin"
+	},
+	"footer": {
+		"prefix": "This website is managed by contributors at",
+		"link": "github.com/chaek-union",
+		"suffix": ""
+	},
+	"builds": {
+		"title": "Build Logs",
+		"allBuilds": "All Builds",
+		"bookName": "Book Name",
+		"status": "Status",
+		"startedAt": "Started At",
+		"completedAt": "Completed At",
+		"duration": "Duration",
+		"viewLog": "View Log",
+		"running": "Running",
+		"success": "Success",
+		"failed": "Failed",
+		"empty": "No build logs available.",
+		"unauthorized": "You must be logged in as a chaek-union member to view build logs.",
+		"stdout": "Output",
+		"stderr": "Error Output",
+		"errorMessage": "Error Message"
 	},
 	"language": {
 		"korean": "한국어",

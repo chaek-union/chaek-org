@@ -1,153 +1,171 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { t, locale } from '$lib/i18n';
-	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import { t } from '$lib/i18n';
+	import Navbar from '$lib/components/Navbar.svelte';
+	import BottomBar from '$lib/components/BottomBar.svelte';
+	import BookCard from '$lib/components/BookCard.svelte';
 
-	export let data: PageData;
+	let { data }: { data: PageData } = $props();
 
-	$: pageTitle = `${$t('app.title')} - ${$t('app.subtitle')}`;
+	const pageTitle = $derived(`${$t('app.title')} - ${$t('app.subtitle')}`);
 </script>
 
 <svelte:head>
 	<title>{pageTitle}</title>
 </svelte:head>
 
+<Navbar {data} />
+
 <main>
-	<header>
-		<div class="header-top">
-			<LanguageSwitcher />
-		</div>
-		<h1>📚 {$t('app.title')}</h1>
-		<p>{$t('app.subtitle')}</p>
-	</header>
+	<section class="hero">
+		<h1>{$t('app.subtitle')}</h1>
+		<p class="hero-description">{$t('app.description')}</p>
+	</section>
 
 	<section class="books">
-		<h2>{$t('books.title')}</h2>
+		<div class="books-header">
+			<h2>{$t('books.title')}</h2>
+			{#if data.books.length > 0}
+				<span class="book-count">{data.books.length} {$t('books.available')}</span>
+			{/if}
+		</div>
+
 		{#if data.books.length === 0}
 			<p class="empty">{$t('books.empty')}</p>
 		{:else}
 			<div class="book-grid">
 				{#each data.books as book}
-					<a href="/books/{book.id}" class="book-card">
-						<h3>{book.name}</h3>
-						{#if book.description}
-							<p class="description">{book.description}</p>
-						{/if}
-						{#if book.lastUpdated}
-							<p class="updated">
-								{$t('books.lastUpdated')}: {new Date(book.lastUpdated).toLocaleDateString(
-									$locale === 'ko' ? 'ko-KR' : 'en-US'
-								)}
-							</p>
-						{/if}
-					</a>
+					<BookCard
+						id={book.id}
+						name={book.name}
+						description={book.description}
+						lastUpdated={book.lastUpdated}
+					/>
 				{/each}
 			</div>
 		{/if}
 	</section>
 </main>
 
+<BottomBar {data} />
+
 <style>
 	:global(body) {
 		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
 		margin: 0;
 		padding: 0;
-		background: #f5f5f5;
+		background: #f8f9fa;
 	}
 
 	main {
-		max-width: 1200px;
-		margin: 0 auto;
-		padding: 2rem;
+		width: 100%;
+		min-height: calc(100vh - 70px);
+		padding-bottom: 5rem;
 	}
 
-	header {
+	.hero {
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		padding: 4rem 2rem;
 		text-align: center;
-		margin-bottom: 3rem;
-		padding: 2rem;
-		background: white;
-		border-radius: 8px;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		position: relative;
 	}
 
-	.header-top {
-		position: absolute;
-		top: 1rem;
-		right: 1rem;
+	.hero h1 {
+		font-size: 2.5rem;
+		margin: 0 0 1rem 0;
+		font-weight: 700;
+		max-width: 1400px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 
-	header h1 {
-		font-size: 3rem;
-		margin: 0 0 0.5rem 0;
-		color: #333;
-	}
-
-	header p {
+	.hero-description {
 		font-size: 1.2rem;
-		color: #666;
 		margin: 0;
+		opacity: 0.95;
+		max-width: 800px;
+		margin-left: auto;
+		margin-right: auto;
+		line-height: 1.6;
 	}
 
 	.books {
-		background: white;
-		border-radius: 8px;
-		padding: 2rem;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		max-width: 1400px;
+		margin: 0 auto;
+		padding: 3rem 2rem;
+	}
+
+	.books-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 2rem;
+		flex-wrap: wrap;
+		gap: 1rem;
 	}
 
 	.books h2 {
-		margin: 0 0 1.5rem 0;
+		margin: 0;
 		color: #333;
-		font-size: 1.5rem;
+		font-size: 2rem;
+		font-weight: 700;
+	}
+
+	.book-count {
+		color: #666;
+		font-size: 0.95rem;
+		background: white;
+		padding: 0.5rem 1rem;
+		border-radius: 20px;
+		border: 1px solid #e0e0e0;
 	}
 
 	.empty {
 		text-align: center;
 		color: #999;
-		padding: 3rem;
+		padding: 4rem 2rem;
 		font-size: 1.1rem;
+		background: white;
+		border-radius: 12px;
+		border: 2px dashed #e0e0e0;
 	}
 
 	.book-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
 		gap: 1.5rem;
 	}
 
-	.book-card {
-		display: block;
-		padding: 1.5rem;
-		border: 2px solid #e0e0e0;
-		border-radius: 8px;
-		text-decoration: none;
-		color: inherit;
-		transition: all 0.2s;
-		background: #fafafa;
+	@media (max-width: 768px) {
+		.hero {
+			padding: 3rem 1.5rem;
+		}
+
+		.hero h1 {
+			font-size: 2rem;
+		}
+
+		.hero-description {
+			font-size: 1rem;
+		}
+
+		.books {
+			padding: 2rem 1rem;
+		}
+
+		.books h2 {
+			font-size: 1.5rem;
+		}
+
+		.book-grid {
+			grid-template-columns: 1fr;
+			gap: 1rem;
+		}
 	}
 
-	.book-card:hover {
-		border-color: #4285f4;
-		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-		transform: translateY(-2px);
-	}
-
-	.book-card h3 {
-		margin: 0 0 0.5rem 0;
-		color: #333;
-		font-size: 1.3rem;
-		text-transform: capitalize;
-	}
-
-	.book-card .description {
-		color: #666;
-		margin: 0 0 0.5rem 0;
-		line-height: 1.5;
-	}
-
-	.book-card .updated {
-		margin: 0;
-		font-size: 0.85rem;
-		color: #999;
+	@media (min-width: 1400px) {
+		.book-grid {
+			grid-template-columns: repeat(3, 1fr);
+		}
 	}
 </style>

@@ -1,14 +1,14 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: chaek-db
+    container_name: chaek-db-dev
     restart: unless-stopped
     environment:
       - POSTGRES_DB=chaek
       - POSTGRES_USER=chaek
       - POSTGRES_PASSWORD=chaek
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_dev:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chaek"]
       interval: 10s
@@ -16,11 +16,15 @@ services:
       retries: 5
 
   app:
-    build: .
-    container_name: chaek-app
+    image: node:20-alpine
+    container_name: chaek-app-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host"
     ports:
-      - "8513:3000"
+      - "5173:5173"
     volumes:
+      - .:/app
+      - /app/node_modules
       - ./books:/app/books
       - ./static/books:/app/static/books
     restart: unless-stopped
@@ -28,12 +32,11 @@ services:
       db:
         condition: service_healthy
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://chaek:chaek@db:5432/chaek
       - GITHUB_ID=${GITHUB_ID}
       - GITHUB_SECRET=${GITHUB_SECRET}
       - AUTH_SECRET=${AUTH_SECRET}
 
 volumes:
-  postgres_data:
+  postgres_data_dev:

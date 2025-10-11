@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { simpleGit } from 'simple-git';
 import fs from 'fs/promises';
 import path from 'path';
+import { createBuildLog, updateBuildLog } from './db/builds.js';
 
 const BOOKS_DIR = path.join(process.cwd(), 'books');
 const STATIC_BOOKS_DIR = path.join(process.cwd(), 'static', 'books');
@@ -10,6 +11,7 @@ interface CompilationResult {
 	success: boolean;
 	message: string;
 	error?: string;
+	buildId?: number;
 }
 
 /**
@@ -36,7 +38,10 @@ async function syncRepository(repoName: string, repoUrl: string): Promise<void> 
 /**
  * Compile a HonKit book
  */
-async function compileBook(repoName: string): Promise<CompilationResult> {
+async function compileBook(
+	repoName: string,
+	buildId: number
+): Promise<CompilationResult> {
 	const repoPath = path.join(BOOKS_DIR, repoName);
 	const outputPath = path.join(STATIC_BOOKS_DIR, repoName);
 
@@ -62,26 +67,32 @@ async function compileBook(repoName: string): Promise<CompilationResult> {
 			console.error(`[${repoName}] ${data}`);
 		});
 
-		buildProcess.on('close', (code) => {
+		buildProcess.on('close', async (code) => {
 			if (code === 0) {
+				await updateBuildLog(buildId, 'success', stdout, stderr);
 				resolve({
 					success: true,
-					message: `Successfully compiled ${repoName}`
+					message: `Successfully compiled ${repoName}`,
+					buildId
 				});
 			} else {
+				await updateBuildLog(buildId, 'failed', stdout, stderr, `Build exited with code ${code}`);
 				resolve({
 					success: false,
 					message: `Failed to compile ${repoName}`,
-					error: stderr || stdout
+					error: stderr || stdout,
+					buildId
 				});
 			}
 		});
 
-		buildProcess.on('error', (error) => {
+		buildProcess.on('error', async (error) => {
+			await updateBuildLog(buildId, 'failed', stdout, stderr, error.message);
 			resolve({
 				success: false,
 				message: `Failed to compile ${repoName}`,
-				error: error.message
+				error: error.message,
+				buildId
 			});
 		});
 	});
@@ -90,8 +101,18 @@ async function compileBook(repoName: string): Promise<CompilationResult> {
 /**
  * Process a book: clone/update and compile
  */
-export async function processBook(repoName: string, repoUrl: string): Promise<CompilationResult> {
+export async function processBook(
+	repoName: string,
+	repoUrl: string,
+	triggeredBy?: number
+): Promise<CompilationResult> {
+	let buildId: number | undefined;
+
 	try {
+		// Create build log entry
+		const buildLog = await createBuildLog(repoName, repoName, repoUrl, triggeredBy);
+		buildId = buildLog.id;
+
 		// Ensure directories exist
 		await fs.mkdir(BOOKS_DIR, { recursive: true });
 		await fs.mkdir(STATIC_BOOKS_DIR, { recursive: true });
@@ -100,15 +121,23 @@ export async function processBook(repoName: string, repoUrl: string): Promise<Co
 		await syncRepository(repoName, repoUrl);
 
 		// Compile book
-		const result = await compileBook(repoName);
+		const result = await compileBook(repoName, buildId);
 
 		return result;
 	} catch (error) {
 		console.error(`Error processing book ${repoName}:`, error);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+
+		// Update build log with error if we have a buildId
+		if (buildId) {
+			await updateBuildLog(buildId, 'failed', '', '', errorMessage);
+		}
+
 		return {
 			success: false,
 			message: `Error processing ${repoName}`,
-			error: error instanceof Error ? error.message : String(error)
+			error: errorMessage,
+			buildId
 		};
 	}
 }
