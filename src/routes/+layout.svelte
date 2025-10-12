@@ -4,6 +4,32 @@
 	let { children, data } = $props();
 </script>
 
-{@render children?.()}
+<div class="content-wrapper">
+	<div class="content">
+		{@render children?.()}
+	</div>
+	<div class="footer">
+		<BottomBar {data} />
+	</div>
+</div>
+<style>
+	.content-wrapper {
+		position: absolute;
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+	}
 
-<BottomBar {data} />
+	.content {
+		flex: 1;
+		overflow-y: auto;
+	}
+
+	.footer {
+		flex-shrink: 0;
+	}
+</style>

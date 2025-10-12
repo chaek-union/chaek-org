@@ -86,6 +86,12 @@ export const load: PageServerLoad = async ({ params }) => {
 					return `${prefix}${absoluteUrl}${suffix}`;
 				}
 			);
+
+			// Wrap tables in a div for horizontal scrolling
+			htmlContent = htmlContent.replace(
+				/(<table[^>]*>[\s\S]*?<\/table>)/g,
+				'<div class="table-wrapper">$1</div>'
+			);
 		}
 	} catch (err) {
 		console.error('Error loading markdown:', err);

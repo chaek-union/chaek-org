@@ -42,10 +42,6 @@
 
 <style>
 	.bottom-bar {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
 		background: #f5f5f5;
 		border-top: 1px solid #e0e0e0;
 		padding: 0.75rem 0;

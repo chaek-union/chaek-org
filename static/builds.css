@@ -1,0 +1,85 @@
+/* Builds Pages Styles */
+
+header {
+	margin-top: 1rem;
+	margin-bottom: 2rem;
+}
+
+.builds-header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin-bottom: 2rem;
+}
+
+.builds-header h1 {
+	flex: 1;
+	text-transform: capitalize;
+}
+
+.book-name {
+	font-weight: 500;
+	color: var(--text-primary);
+	text-transform: capitalize;
+}
+
+.date,
+.duration {
+	font-size: 0.9rem;
+	font-family: monospace;
+}
+
+/* Build Log Page Specific */
+.log-container {
+	flex: 1;
+	background: #1e1e1e;
+	border-radius: 8px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.log-content {
+	flex: 1;
+	margin: 0;
+	padding: 1rem;
+	color: #d4d4d4;
+	font-family: 'Consolas', 'Monaco', monospace;
+	font-size: 0.875rem;
+	line-height: 1.5;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.log-page .container {
+	height: calc(100vh - 140px);
+	display: flex;
+	flex-direction: column;
+}
+
+.log-page header {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+
+.log-page header h1 {
+	flex: 1;
+	font-size: 1.75rem;
+}
+
+.log-page .status {
+	padding: 0.5rem 1rem;
+}
+
+@media (max-width: 768px) {
+	.builds-header h1 {
+		font-size: 1.25rem;
+	}
+
+	.log-page header h1 {
+		font-size: 1.25rem;
+	}
+}

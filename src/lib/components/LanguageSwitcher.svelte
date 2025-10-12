@@ -167,4 +167,19 @@
 		font-weight: 600;
 		background: #f0f7ff;
 	}
+
+	@media (max-width: 768px) {
+		.current-lang {
+			display: none;
+		}
+
+		.chevron {
+			display: none;
+		}
+
+		.dropdown-trigger {
+			padding: 0.5rem;
+			min-width: auto;
+		}
+	}
 </style>
