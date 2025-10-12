@@ -57,7 +57,7 @@
 	border: 1px solid var(--border-color);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
 	.hero {
 		padding: 3rem 1.5rem;
 	}

@@ -427,7 +427,7 @@
 }
 
 /* Responsive Design */
-@media screen and (max-width: 768px) {
+@media screen and (max-width: 1024px) {
 	.book-sidebar {
 		position: absolute;
 		left: -300px;
@@ -627,7 +627,7 @@ header h1 {
 	text-align: center;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
 	.hamburger {
 		display: flex;
 	}

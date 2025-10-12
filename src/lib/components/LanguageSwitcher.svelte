@@ -168,7 +168,7 @@
 		background: #f0f7ff;
 	}
 
-	@media (max-width: 768px) {
+	@media (max-width: 1024px) {
 		.current-lang {
 			display: none;
 		}

@@ -88,7 +88,7 @@
 		color: #4285f4;
 	}
 
-	@media (max-width: 768px) {
+	@media (max-width: 1024px) {
 		.navbar-container {
 			padding: 0.75rem 1rem;
 		}

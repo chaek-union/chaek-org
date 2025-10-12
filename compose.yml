@@ -31,6 +31,9 @@ services:
       - GITHUB_ID=${GITHUB_ID}
       - GITHUB_SECRET=${GITHUB_SECRET}
       - AUTH_SECRET=${AUTH_SECRET}
+    volumes:
+      - ./books:/app/books
+      - ./static/books:/app/static/books
 
 volumes:
   postgres_data:

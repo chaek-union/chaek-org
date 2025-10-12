@@ -174,7 +174,7 @@
 		opacity: 0.6;
 	}
 
-	@media (max-width: 768px) {
+	@media (max-width: 1024px) {
 		.book-card {
 			padding: 1.25rem;
 		}
