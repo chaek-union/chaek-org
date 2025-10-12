@@ -1,4 +1,4 @@
-import { OPENROUTER_API_KEY, OPENROUTER_MODEL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 export interface LLMMessage {
 	role: 'system' | 'user' | 'assistant';
@@ -15,20 +15,23 @@ export async function callLLM(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
 ): Promise<string> {
-	if (!OPENROUTER_API_KEY) {
-		throw new Error('OPENROUTER_API_KEY not configured');
+	const apiKey = env.OPENROUTER_API_KEY;
+	const modelName = env.OPENROUTER_MODEL;
+
+	if (!apiKey) {
+		throw new Error('OPENROUTER_API_KEY not configured in environment variables');
 	}
 
 	const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
 		method: 'POST',
 		headers: {
-			'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+			'Authorization': `Bearer ${apiKey}`,
 			'Content-Type': 'application/json',
 			'HTTP-Referer': 'https://chaek.org',
 			'X-Title': 'Chaek Textbook Platform'
 		},
 		body: JSON.stringify({
-			model: options.model || OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet',
+			model: options.model || modelName || 'anthropic/claude-3.5-sonnet',
 			messages,
 			max_tokens: options.maxTokens,
 			temperature: options.temperature,

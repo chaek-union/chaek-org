@@ -39,6 +39,8 @@ services:
       - GITHUB_ID=${GITHUB_ID}
       - GITHUB_SECRET=${GITHUB_SECRET}
       - AUTH_SECRET=${AUTH_SECRET}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
 
 volumes:
   postgres_data_dev:
