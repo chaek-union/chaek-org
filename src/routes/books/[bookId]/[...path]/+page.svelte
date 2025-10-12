@@ -4,6 +4,7 @@
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import ChatBot from '$lib/components/ChatBot.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -15,10 +16,51 @@
 	let allHighlights: HTMLElement[] = $state([]);
 	const pageTitle = $derived(`${data.book.name} - ${$t('app.title')}`);
 	let sidebarOpen = $state(false);
+	let chatbotVisible = $state(false);
+	let chatbotWidth = $state(350);
+	let isResizing = $state(false);
+
+	// Set chatbot visibility based on screen size on mount
+	$effect(() => {
+		if (typeof window !== 'undefined') {
+			chatbotVisible = window.innerWidth >= 1024;
+		}
+	});
 
 	let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 	let searchIndex: any = null;
 	let searchDocuments: any[] = [];
+
+	function toggleChatbot() {
+		chatbotVisible = !chatbotVisible;
+	}
+
+	function startResize(e: MouseEvent) {
+		isResizing = true;
+		e.preventDefault();
+	}
+
+	$effect(() => {
+		if (!isResizing) return;
+
+		function handleMouseMove(e: MouseEvent) {
+			if (!isResizing) return;
+			const newWidth = window.innerWidth - e.clientX;
+			chatbotWidth = Math.max(250, Math.min(600, newWidth));
+		}
+
+		function handleMouseUp() {
+			isResizing = false;
+		}
+
+		document.addEventListener('mousemove', handleMouseMove);
+		document.addEventListener('mouseup', handleMouseUp);
+
+		return () => {
+			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener('mouseup', handleMouseUp);
+		};
+	});
 
 	function toggleSidebar() {
 		sidebarOpen = !sidebarOpen;
@@ -381,34 +423,46 @@
 			{/if}
 		</div>
 
-		<div class="book-main">
-			{#if highlightTerms.length > 0 && allHighlights.length > 0}
-				<div class="search-navigation">
-					<button
-						onclick={goToPrevHighlight}
-						class="nav-button"
-					>
-						← Previous
-					</button>
-					<span class="search-position">
-						{currentHighlightIndex + 1} / {allHighlights.length}
-					</span>
-					<button
-						onclick={goToNextHighlight}
-						class="nav-button"
-					>
-						Next →
-					</button>
-				</div>
-			{/if}
+		<div class="book-right-container">
+			<div class="book-main">
+				{#if highlightTerms.length > 0 && allHighlights.length > 0}
+					<div class="search-navigation">
+						<button
+							onclick={goToPrevHighlight}
+							class="nav-button"
+						>
+							← Previous
+						</button>
+						<span class="search-position">
+							{currentHighlightIndex + 1} / {allHighlights.length}
+						</span>
+						<button
+							onclick={goToNextHighlight}
+							class="nav-button"
+						>
+							Next →
+						</button>
+					</div>
+				{/if}
 
-			<div class="book-content-wrapper">
-				<!-- svelte-ignore a11y_click_events_have_key_events -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="book-content" onclick={handleLinkClick}>
-					{@html data.htmlContent}
+				<div class="book-content-wrapper">
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="book-content" onclick={handleLinkClick}>
+						{@html data.htmlContent}
+					</div>
 				</div>
 			</div>
+
+			{#if chatbotVisible}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="resize-handle" onmousedown={startResize} role="separator" aria-orientation="vertical"></div>
+				<div class="book-chatbot" style="width: {chatbotWidth}px;">
+					<ChatBot bookId={data.book.id} bookName={data.book.name} isVisible={chatbotVisible} onToggle={toggleChatbot} />
+				</div>
+			{:else}
+				<ChatBot bookId={data.book.id} bookName={data.book.name} isVisible={false} onToggle={toggleChatbot} />
+			{/if}
 		</div>
 	</div>
 </div>

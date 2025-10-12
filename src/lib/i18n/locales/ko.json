@@ -53,5 +53,11 @@
 		"searchResults": "검색 결과",
 		"noResults": "결과가 없습니다",
 		"introduction": "들어가며"
+	},
+	"chatbot": {
+		"title": "AI 도우미",
+		"welcome": "안녕하세요! 이 책을 더 잘 이해하도록 도와드릴까요?",
+		"hint": "책의 내용, 개념, 주제에 대해 무엇이든 물어보세요.",
+		"placeholder": "메시지를 입력하세요... (엔터키로 전송)"
 	}
 }

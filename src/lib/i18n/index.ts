@@ -54,7 +54,7 @@ if (browser) {
 
 // Translation function - always returns translations
 export const t = derived(locale, ($locale) => {
-	return (key: string): string => {
+	return (key: string, vars?: Record<string, string>): string => {
 		const keys = key.split('.');
 		let value: any = translations[$locale];
 
@@ -66,7 +66,16 @@ export const t = derived(locale, ($locale) => {
 			}
 		}
 
-		return typeof value === 'string' ? value : key;
+		let result = typeof value === 'string' ? value : key;
+
+		// Replace variables like {varName} with actual values
+		if (vars) {
+			Object.entries(vars).forEach(([varName, varValue]) => {
+				result = result.replace(new RegExp(`\\{${varName}\\}`, 'g'), varValue);
+			});
+		}
+
+		return result;
 	};
 });
 

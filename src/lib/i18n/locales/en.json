@@ -53,5 +53,11 @@
 		"searchResults": "Search Results",
 		"noResults": "No results found",
 		"introduction": "Introduction"
+	},
+	"chatbot": {
+		"title": "AI Assistant",
+		"welcome": "Hello! How can I help you understand this book better?",
+		"hint": "Ask me anything about the content, concepts, or topics in this book.",
+		"placeholder": "Type your message... (Press Enter to send)"
 	}
 }

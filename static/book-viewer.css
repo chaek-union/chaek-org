@@ -16,6 +16,44 @@
 	background: #fff;
 }
 
+.book-right-container {
+	width: 100%;
+	display: flex;
+	min-width: 0;
+}
+
+.book-chatbot {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.resize-handle {
+	width: 3px;
+	background: var(--border-color);
+	cursor: col-resize;
+	flex-shrink: 0;
+	transition: background 0.2s;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: stretch;
+}
+
+.resize-handle:hover {
+	background: #93c5fd;
+}
+
+.resize-handle::before {
+	content: '';
+	position: absolute;
+	left: -4px;
+	right: -4px;
+	top: 0;
+	bottom: 0;
+}
+
 /* Sidebar Navigation */
 .book-sidebar {
 	width: 300px;
@@ -426,44 +464,6 @@
 	font-weight: 600;
 }
 
-/* Responsive Design */
-@media screen and (max-width: 1024px) {
-	.book-sidebar {
-		position: absolute;
-		left: -300px;
-		top: 0;
-		bottom: 0;
-		z-index: 100;
-		transition: left 250ms ease;
-		box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-	}
-
-	.book-sidebar.open {
-		left: 0;
-	}
-
-	.book-main {
-		padding: 0;
-	}
-
-	.book-content {
-		font-size: 15px;
-		padding: 20px 15px;
-	}
-
-	.book-content h1 {
-		font-size: 1.75em;
-	}
-
-	.book-content h2 {
-		font-size: 1.5em;
-	}
-
-	.book-content h3 {
-		font-size: 1.25em;
-	}
-}
-
 /* Print Styles */
 @media print {
 	.book-sidebar,
@@ -627,6 +627,49 @@ header h1 {
 	text-align: center;
 }
 
+@media (max-width: 1280px) {
+	.book-viewer {
+		display: flex;
+		flex-direction: row;
+	}
+
+	.book-sidebar {
+		width: 250px;
+		flex-shrink: 0;
+	}
+
+	.book-right-container {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.book-main {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.book-content-wrapper {
+		flex: 1;
+		overflow-y: auto;
+	}
+
+	.book-chatbot {
+		width: 100% !important;
+		height: 300px;
+		border-top: 2px solid var(--border-color);
+		border-left: none;
+		flex-shrink: 0;
+	}
+
+	.resize-handle {
+		display: none;
+	}
+}
+
 @media (max-width: 1024px) {
 	.hamburger {
 		display: flex;
@@ -634,6 +677,44 @@ header h1 {
 
 	.sidebar-overlay {
 		display: block;
+	}
+
+	.book-sidebar {
+		position: absolute;
+		left: -300px;
+		top: 0;
+		bottom: 0;
+		z-index: 100;
+		transition: left 250ms ease;
+		box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+		max-height: none;
+		width: 300px;
+		border-bottom: none;
+	}
+
+	.book-sidebar.open {
+		left: 0;
+	}
+
+	.book-main {
+		padding: 0;
+	}
+
+	.book-content {
+		font-size: 15px;
+		padding: 20px 15px;
+	}
+
+	.book-content h1 {
+		font-size: 1.75em;
+	}
+
+	.book-content h2 {
+		font-size: 1.5em;
+	}
+
+	.book-content h3 {
+		font-size: 1.25em;
 	}
 
 	header {
