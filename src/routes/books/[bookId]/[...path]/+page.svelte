@@ -80,10 +80,12 @@
 		if (highlightTerms.length > 0) {
 			// Use setTimeout to ensure DOM is updated
 			setTimeout(async () => {
-				// Scroll to top immediately (synchronously)
-				const wrapper = document.querySelector('.book-content-wrapper');
-				if (wrapper) {
-					wrapper.scrollTop = 0;
+				// Only scroll to top if URL doesn't have an anchor
+				if (!window.location.hash) {
+					const wrapper = document.querySelector('.book-content-wrapper');
+					if (wrapper) {
+						wrapper.scrollTop = 0;
+					}
 				}
 
 				highlightSearchTerms();
@@ -92,10 +94,12 @@
 				await updateCurrentHighlight(true);
 			}, 0);
 		} else {
-			// No search active, scroll to top
-			const wrapper = document.querySelector('.book-content-wrapper');
-			if (wrapper) {
-				wrapper.scrollTop = 0;
+			// No search active, scroll to top only if no anchor in URL
+			if (!window.location.hash) {
+				const wrapper = document.querySelector('.book-content-wrapper');
+				if (wrapper) {
+					wrapper.scrollTop = 0;
+				}
 			}
 		}
 	});
