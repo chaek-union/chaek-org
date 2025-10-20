@@ -38,7 +38,7 @@ Source code changes will be reflected in real-time.
 ## Webhook
 
 Set webhook URL in your `chaek-union` repositories:
-- URL: `https://your-domain.com/api/webhook`
+- URL: `https://chaek.org/api/webhook`
 - Event: Push
 
 ## License
