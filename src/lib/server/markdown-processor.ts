@@ -1,6 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { BOOKS_DIR } from './books';
+import fs from "fs/promises";
+import path from "path";
+import { BOOKS_DIR } from "./books";
 
 interface BookJson {
     title?: string;
@@ -11,10 +11,12 @@ interface BookJson {
 /**
  * Load book.json and return variables
  */
-export async function getBookVariables(bookId: string): Promise<Record<string, string>> {
-    const bookJsonPath = path.join(BOOKS_DIR, bookId, 'book.json');
+export async function getBookVariables(
+    bookId: string,
+): Promise<Record<string, string>> {
+    const bookJsonPath = path.join(BOOKS_DIR, bookId, "book.json");
     try {
-        const content = await fs.readFile(bookJsonPath, 'utf-8');
+        const content = await fs.readFile(bookJsonPath, "utf-8");
         const bookJson: BookJson = JSON.parse(content);
         return bookJson.variables || {};
     } catch {
@@ -25,28 +27,46 @@ export async function getBookVariables(bookId: string): Promise<Record<string, s
 /**
  * Replace {{ book.variable }} with actual values from book.json
  */
-export function replaceVariables(content: string, variables: Record<string, string>): string {
-    return content.replace(/\{\{\s*book\.(\w+)\s*\}\}/g, (match, variableName) => {
-        return variables[variableName] || match;
-    });
+export function replaceVariables(
+    content: string,
+    variables: Record<string, string>,
+): string {
+    return content.replace(
+        /\{\{\s*book\.(\w+)\s*\}\}/g,
+        (match, variableName) => {
+            return variables[variableName] || match;
+        },
+    );
 }
 
 /**
- * Replace {#anchor} with proper HTML anchor attribute
+ * Replace {#anchor} with HTML heading attributes
  * Converts: ## Heading {#custom-id}
- * To: ## Heading {#custom-id}
- * (mdsvex will handle the {#id} syntax automatically)
+ * To: <h2 id="custom-id">Heading</h2>
+ *
+ * This ensures custom anchors work correctly instead of relying on auto-generated slugs
  */
 export function processAnchors(content: string): string {
-    // mdsvex already supports {#id} syntax for custom IDs
-    // No transformation needed - it's built into mdsvex
-    return content;
+    // Match headings with {#anchor} syntax
+    // Pattern: (# heading text) {#anchor-id}
+    return content.replace(
+        /^(#{1,6})\s+(.+?)\s+\{#([a-zA-Z0-9_-]+)\}\s*$/gm,
+        (match, hashes, headingText, anchorId) => {
+            const level = hashes.length;
+            const cleanText = headingText.trim();
+            // Convert to HTML with custom id
+            return `<h${level} id="${anchorId}">${cleanText}</h${level}>`;
+        },
+    );
 }
 
 /**
  * Process markdown content with variable replacement
  */
-export async function processMarkdown(bookId: string, markdown: string): Promise<string> {
+export async function processMarkdown(
+    bookId: string,
+    markdown: string,
+): Promise<string> {
     // Get book variables
     const variables = await getBookVariables(bookId);
 
