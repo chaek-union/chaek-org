@@ -51,33 +51,26 @@ export const load: PageServerLoad = async ({ params }) => {
         });
 
         if (result && result.code) {
-            // Debug logging
-            console.log("=== MDSVEX OUTPUT SAMPLE ===");
-            console.log(result.code.substring(0, 800));
-            console.log("=== END ===");
-
             // Extract the HTML content from the compiled Svelte component
-            // mdsvex wraps content in {`...`} template literals
-            // We need to extract and unescape the content
+            // mdsvex compiles to Svelte component code with {@html `...`} blocks
+            // We need to replace these with actual HTML content
 
-            // Try to match the content inside {`...`} template literal
-            let match = result.code.match(/\{`([\s\S]*?)`\}/);
-            if (match) {
-                // Unescape the template literal content
-                htmlContent = match[1]
-                    .replace(/\\`/g, "`")
-                    .replace(/\\\$/g, "$")
-                    .replace(/\\\\/g, "\\");
-            } else {
-                // Fallback: try to extract <div> wrapper
-                match = result.code.match(/<div[^>]*>([\s\S]*)<\/div>/);
-                if (match) {
-                    htmlContent = match[0];
-                } else {
-                    // Last resort: use the whole compiled result
-                    htmlContent = result.code;
-                }
-            }
+            htmlContent = result.code;
+
+            // Replace {@html `...`} blocks with the actual HTML content
+            htmlContent = htmlContent.replace(
+                /\{@html `([^`]*(?:\\.[^`]*)*)`\}/g,
+                (match, content) => {
+                    // Unescape template literal escapes
+                    return content
+                        .replace(/\\`/g, "`")
+                        .replace(/\\\$/g, "$")
+                        .replace(/\\n/g, "\n")
+                        .replace(/\\r/g, "\r")
+                        .replace(/\\t/g, "\t")
+                        .replace(/\\\\/g, "\\");
+                },
+            );
 
             // Rewrite relative paths to be absolute URLs with /books/{bookId}/ prefix
             // Get the directory of the current page
