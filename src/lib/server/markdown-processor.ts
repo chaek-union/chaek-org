@@ -61,12 +61,26 @@ export function processAnchors(content: string): string {
 }
 
 /**
+ * Escape backslashes for LaTeX/PDF generation
+ * Converts single backslashes to double backslashes within inline code
+ * to prevent LaTeX from interpreting them as control sequences
+ */
+function escapeBackslashesForPdf(content: string): string {
+    // Escape backslashes within inline code (`...`)
+    // Match inline code and replace backslashes with double backslashes
+    return content.replace(/`([^`]+)`/g, (match, code) => {
+        const escaped = code.replace(/\\/g, "\\\\");
+        return `\`${escaped}\``;
+    });
+}
+
+/**
  * Process markdown content with variable replacement
  */
 export async function processMarkdown(
     bookId: string,
     markdown: string,
-    options?: { skipAnchors?: boolean },
+    options?: { skipAnchors?: boolean; forPdf?: boolean },
 ): Promise<string> {
     // Get book variables
     const variables = await getBookVariables(bookId);
@@ -80,6 +94,11 @@ export async function processMarkdown(
     } else {
         // For PDF generation, just remove the {#anchor} syntax
         processed = processed.replace(/\s*\{#[a-zA-Z0-9_-]+\}\s*$/gm, "");
+    }
+
+    // Escape backslashes for PDF generation
+    if (options?.forPdf) {
+        processed = escapeBackslashesForPdf(processed);
     }
 
     return processed;
