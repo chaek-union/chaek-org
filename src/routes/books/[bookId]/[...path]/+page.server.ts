@@ -52,13 +52,26 @@ export const load: PageServerLoad = async ({ params }) => {
 
         if (result && result.code) {
             // Extract the HTML content from the compiled Svelte component
-            // The compiled code contains the HTML in the markup section
-            const htmlMatch = result.code.match(/<div[^>]*>([\s\S]*)<\/div>/);
-            if (htmlMatch) {
-                htmlContent = htmlMatch[0];
+            // mdsvex wraps content in {`...`} template literals
+            // We need to extract and unescape the content
+
+            // Try to match the content inside {`...`} template literal
+            let match = result.code.match(/\{`([\s\S]*?)`\}/);
+            if (match) {
+                // Unescape the template literal content
+                htmlContent = match[1]
+                    .replace(/\\`/g, "`")
+                    .replace(/\\\$/g, "$")
+                    .replace(/\\\\/g, "\\");
             } else {
-                // Fallback: use the whole compiled result
-                htmlContent = result.code;
+                // Fallback: try to extract <div> wrapper
+                match = result.code.match(/<div[^>]*>([\s\S]*)<\/div>/);
+                if (match) {
+                    htmlContent = match[0];
+                } else {
+                    // Last resort: use the whole compiled result
+                    htmlContent = result.code;
+                }
             }
 
             // Rewrite relative paths to be absolute URLs with /books/{bookId}/ prefix
