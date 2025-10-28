@@ -11,6 +11,7 @@ import {
     getFilePathsWithChapters,
 } from "./summary-parser.js";
 import { buildEvents } from "./build-events.js";
+import { processMarkdown } from "./markdown-processor.js";
 
 const BOOKS_DIR = path.join(process.cwd(), "books");
 const STATIC_BOOKS_DIR = path.join(process.cwd(), "static", "books");
@@ -115,7 +116,10 @@ async function buildSearchIndex(
             filePathsWithChapters.map(async ({ path: filePath, chapter }) => {
                 try {
                     const fullPath = path.join(bookRoot, filePath);
-                    const content = await fs.readFile(fullPath, "utf-8");
+                    let content = await fs.readFile(fullPath, "utf-8");
+
+                    // Process markdown: replace variables
+                    content = await processMarkdown(repoName, content);
 
                     // Remove markdown syntax for better search
                     const cleanContent = content
@@ -256,6 +260,9 @@ async function buildPdf(
             try {
                 const fullPath = path.join(bookRoot, filePath);
                 let content = await fs.readFile(fullPath, "utf-8");
+
+                // Process markdown: replace variables
+                content = await processMarkdown(repoName, content);
 
                 // Download remote images and replace URLs
                 const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g;
