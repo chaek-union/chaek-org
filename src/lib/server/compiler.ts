@@ -505,7 +505,6 @@ async function buildPdf(
                     "--toc-depth=3",
                     "--from",
                     "markdown-fancy_lists",
-                    "-N",
                 ],
                 {
                     cwd: tmpDir,
