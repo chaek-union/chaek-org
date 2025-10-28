@@ -66,6 +66,7 @@ export function processAnchors(content: string): string {
 export async function processMarkdown(
     bookId: string,
     markdown: string,
+    options?: { skipAnchors?: boolean },
 ): Promise<string> {
     // Get book variables
     const variables = await getBookVariables(bookId);
@@ -73,8 +74,13 @@ export async function processMarkdown(
     // Replace variables
     let processed = replaceVariables(markdown, variables);
 
-    // Process anchors (no-op for now as mdsvex handles {#id} syntax)
-    processed = processAnchors(processed);
+    // Process anchors only if not skipped (skip for PDF generation)
+    if (!options?.skipAnchors) {
+        processed = processAnchors(processed);
+    } else {
+        // For PDF generation, just remove the {#anchor} syntax
+        processed = processed.replace(/\s*\{#[a-zA-Z0-9_-]+\}\s*$/gm, "");
+    }
 
     return processed;
 }

@@ -261,8 +261,10 @@ async function buildPdf(
                 const fullPath = path.join(bookRoot, filePath);
                 let content = await fs.readFile(fullPath, "utf-8");
 
-                // Process markdown: replace variables
-                content = await processMarkdown(repoName, content);
+                // Process markdown: replace variables, skip anchors for PDF
+                content = await processMarkdown(repoName, content, {
+                    skipAnchors: true,
+                });
 
                 // Download remote images and replace URLs
                 const imageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g;
