@@ -40,9 +40,9 @@ export function replaceVariables(
 }
 
 /**
- * Replace {#anchor} with HTML heading attributes
+ * Replace {#anchor} with HTML heading attributes and anchor links
  * Converts: ## Heading {#custom-id}
- * To: <h2 id="custom-id">Heading</h2>
+ * To: <h2 id="custom-id"><a href="#custom-id" class="anchor-link">Heading</a></h2>
  *
  * This ensures custom anchors work correctly instead of relying on auto-generated slugs
  */
@@ -54,8 +54,8 @@ export function processAnchors(content: string): string {
         (match, hashes, headingText, anchorId) => {
             const level = hashes.length;
             const cleanText = headingText.trim();
-            // Convert to HTML with custom id
-            return `<h${level} id="${anchorId}">${cleanText}</h${level}>`;
+            // Convert to HTML with custom id and anchor link
+            return `<h${level} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">${cleanText}</a></h${level}>`;
         },
     );
 }
