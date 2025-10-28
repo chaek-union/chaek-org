@@ -24,6 +24,29 @@ interface CompilationResult {
     stderr?: string;
 }
 
+interface BookJson {
+    title?: string;
+    root?: string;
+}
+
+/**
+ * Get book title from book.json, fallback to formatted bookId
+ */
+async function getBookTitle(bookId: string): Promise<string> {
+    const bookJsonPath = path.join(BOOKS_DIR, bookId, "book.json");
+    try {
+        const content = await fs.readFile(bookJsonPath, "utf-8");
+        const bookJson: BookJson = JSON.parse(content);
+        if (bookJson.title) {
+            return bookJson.title;
+        }
+    } catch {
+        // If book.json doesn't exist or can't be parsed, fall through to default
+    }
+    // Default: convert kebab-case to space-separated
+    return bookId.replace(/-/g, " ");
+}
+
 /**
  * Clone or update a repository
  */
@@ -592,21 +615,24 @@ export async function processBook(
     let buildId: number | undefined;
 
     try {
-        // Create build log entry
-        const buildLog = await createBuildLog(
-            repoName,
-            repoName,
-            repoUrl,
-            triggeredBy,
-        );
-        buildId = buildLog.id;
-
         // Ensure directories exist
         await fs.mkdir(BOOKS_DIR, { recursive: true });
         await fs.mkdir(STATIC_BOOKS_DIR, { recursive: true });
 
-        // Sync repository
+        // Sync repository first
         await syncRepository(repoName, repoUrl);
+
+        // Read book title from book.json
+        const bookTitle = await getBookTitle(repoName);
+
+        // Create build log entry with correct title
+        const buildLog = await createBuildLog(
+            repoName,
+            bookTitle,
+            repoUrl,
+            triggeredBy,
+        );
+        buildId = buildLog.id;
 
         // Emit start status
         await buildEvents.emitStatus(buildId, "running");
