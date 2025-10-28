@@ -470,6 +470,8 @@ async function buildPdf(
                     `title:${bookTitle}`,
                     "--toc",
                     "--toc-depth=3",
+                    "--from",
+                    "markdown-fancy_lists",
                     "-N",
                 ],
                 {
