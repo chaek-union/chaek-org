@@ -51,6 +51,11 @@ export const load: PageServerLoad = async ({ params }) => {
         });
 
         if (result && result.code) {
+            // Debug logging
+            console.log("=== MDSVEX OUTPUT SAMPLE ===");
+            console.log(result.code.substring(0, 800));
+            console.log("=== END ===");
+
             // Extract the HTML content from the compiled Svelte component
             // mdsvex wraps content in {`...`} template literals
             // We need to extract and unescape the content
