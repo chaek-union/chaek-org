@@ -17,6 +17,7 @@
 	let streamingContent = $state('');
 
 	async function sendMessage(content: string) {
+		console.log('[ChatBot] sendMessage called, bookId:', bookId);
 		if (!content.trim() || isLoading) return;
 
 		// Add user message
@@ -39,7 +40,7 @@
 			});
 
 			if (!response.ok) {
-				throw new Error('Failed to send message');
+				throw new Error(response.status === 429 ? 'rate-limited' : 'Failed to send message');
 			}
 
 			const reader = response.body?.getReader();
@@ -81,11 +82,14 @@
 			}));
 		} catch (error) {
 			console.error('Chat error:', error);
+			const errorMsg = error instanceof Error && error.message === 'rate-limited'
+				? $t('chatbot.errorRateLimit')
+				: $t('chatbot.errorGeneric');
 			chatbotMessages.update((state) => ({
 				...state,
 				[bookId]: [...newMessages, {
 					role: 'assistant' as const,
-					content: 'Sorry, I encountered an error. Please try again.'
+					content: errorMsg
 				}]
 			}));
 		} finally {

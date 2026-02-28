@@ -81,7 +81,9 @@
 		"title": "Chaek AI - 오픈소스 도우미",
 		"welcome": "안녕하세요! 이 책을 더 잘 이해하도록 도와드릴까요?",
 		"hint": "책의 내용, 개념, 주제에 대해 무엇이든 물어보세요.",
-		"placeholder": "질문을 입력하세요..."
+		"placeholder": "질문을 입력하세요...",
+		"errorGeneric": "오류가 발생했습니다. 다시 시도해 주세요.",
+		"errorRateLimit": "AI 모델이 일시적으로 사용량 제한에 걸렸습니다. 잠시 후 다시 시도해 주세요."
 	},
 	"readerFooter": {
 		"platform": "플랫폼 정보",

@@ -1,4 +1,6 @@
 import { env } from '$env/dynamic/private';
+import { OpenRouter } from '@openrouter/sdk';
+import { TooManyRequestsResponseError } from '@openrouter/sdk/models/errors';
 
 export interface LLMMessage {
 	role: 'system' | 'user' | 'assistant';
@@ -6,87 +8,76 @@ export interface LLMMessage {
 }
 
 export interface LLMOptions {
-	model?: string;
 	maxTokens?: number;
 	temperature?: number;
+}
+
+function getClient() {
+	const apiKey = env.OPENROUTER_API_KEY;
+	if (!apiKey) {
+		throw new Error('OPENROUTER_API_KEY not configured in environment variables');
+	}
+	return new OpenRouter({ apiKey });
+}
+
+function getModel() {
+	return env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
 }
 
 export async function callLLM(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
 ): Promise<string> {
-	const apiKey = env.OPENROUTER_API_KEY;
-	const modelName = env.OPENROUTER_MODEL;
+	try {
+		const client = getClient();
+		const response = await client.chat.send({
+			httpReferer: 'https://chaek.org',
+			xTitle: 'Chaek Textbook Platform',
+			chatGenerationParams: {
+				model: getModel(),
+				messages: messages.map((m) => ({ role: m.role, content: m.content })),
+				maxTokens: options.maxTokens,
+				temperature: options.temperature,
+				stream: false
+			}
+		});
 
-	if (!apiKey) {
-		throw new Error('OPENROUTER_API_KEY not configured in environment variables');
+		if (!response.choices?.[0]?.message) {
+			throw new Error('Invalid response from OpenRouter');
+		}
+
+		return response.choices[0].message.content as string;
+	} catch (error) {
+		if (error instanceof TooManyRequestsResponseError) {
+			throw new Error('rate-limited');
+		}
+		throw error;
 	}
-
-	const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${apiKey}`,
-			'Content-Type': 'application/json',
-			'HTTP-Referer': 'https://chaek.org',
-			'X-Title': 'Chaek Textbook Platform'
-		},
-		body: JSON.stringify({
-			model: options.model || modelName || 'anthropic/claude-3.5-sonnet',
-			messages,
-			max_tokens: options.maxTokens,
-			temperature: options.temperature
-		})
-	});
-
-	if (!response.ok) {
-		const errorData = await response.text();
-		throw new Error(`OpenRouter API error: ${response.status} - ${errorData}`);
-	}
-
-	const data = await response.json();
-
-	if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-		throw new Error('Invalid response from OpenRouter');
-	}
-
-	return data.choices[0].message.content;
 }
 
-/**
- * Call LLM with streaming. Returns the raw Response from OpenRouter with stream: true.
- */
 export async function callLLMStream(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
-): Promise<Response> {
-	const apiKey = env.OPENROUTER_API_KEY;
-	const modelName = env.OPENROUTER_MODEL;
+) {
+	try {
+		const client = getClient();
+		const stream = await client.chat.send({
+			httpReferer: 'https://chaek.org',
+			xTitle: 'Chaek Textbook Platform',
+			chatGenerationParams: {
+				model: getModel(),
+				messages: messages.map((m) => ({ role: m.role, content: m.content })),
+				maxTokens: options.maxTokens,
+				temperature: options.temperature,
+				stream: true
+			}
+		});
 
-	if (!apiKey) {
-		throw new Error('OPENROUTER_API_KEY not configured in environment variables');
+		return stream;
+	} catch (error) {
+		if (error instanceof TooManyRequestsResponseError) {
+			throw new Error('rate-limited');
+		}
+		throw error;
 	}
-
-	const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-		method: 'POST',
-		headers: {
-			'Authorization': `Bearer ${apiKey}`,
-			'Content-Type': 'application/json',
-			'HTTP-Referer': 'https://chaek.org',
-			'X-Title': 'Chaek Textbook Platform'
-		},
-		body: JSON.stringify({
-			model: options.model || modelName || 'anthropic/claude-3.5-sonnet',
-			messages,
-			max_tokens: options.maxTokens,
-			temperature: options.temperature,
-			stream: true
-		})
-	});
-
-	if (!response.ok) {
-		const errorData = await response.text();
-		throw new Error(`OpenRouter API error: ${response.status} - ${errorData}`);
-	}
-
-	return response;
 }

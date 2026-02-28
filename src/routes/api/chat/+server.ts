@@ -52,49 +52,25 @@ Instructions:
 			}))
 		];
 
-		const upstreamResponse = await callLLMStream(llmMessages);
-
-		if (!upstreamResponse.body) {
-			throw new Error('No response body from LLM');
-		}
-
-		// Pipe the SSE stream through to the client
-		const reader = upstreamResponse.body.getReader();
-		const decoder = new TextDecoder();
+		const llmStream = await callLLMStream(llmMessages);
+		const encoder = new TextEncoder();
 
 		const stream = new ReadableStream({
-			async pull(controller) {
-				const { done, value } = await reader.read();
-				if (done) {
-					controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-					controller.close();
-					return;
-				}
-
-				const chunk = decoder.decode(value, { stream: true });
-				const lines = chunk.split('\n');
-
-				for (const line of lines) {
-					const trimmed = line.trim();
-					if (!trimmed || !trimmed.startsWith('data: ')) continue;
-
-					const data = trimmed.slice(6);
-					if (data === '[DONE]') {
-						controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-						continue;
-					}
-
-					try {
-						const parsed = JSON.parse(data);
-						const content = parsed.choices?.[0]?.delta?.content;
+			async start(controller) {
+				try {
+					for await (const chunk of llmStream) {
+						const content = chunk.choices?.[0]?.delta?.content;
 						if (content) {
 							controller.enqueue(
-								new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`)
+								encoder.encode(`data: ${JSON.stringify({ content })}\n\n`)
 							);
 						}
-					} catch {
-						// Skip malformed lines
 					}
+					controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+					controller.close();
+				} catch (error) {
+					controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+					controller.close();
 				}
 			}
 		});
@@ -108,8 +84,10 @@ Instructions:
 		});
 	} catch (error) {
 		console.error('Chat API error:', error);
-		return new Response(JSON.stringify({ error: 'Failed to process chat message' }), {
-			status: 500,
+		const message = error instanceof Error ? error.message : String(error);
+		const status = message === 'rate-limited' ? 429 : 500;
+		return new Response(JSON.stringify({ error: message }), {
+			status,
 			headers: { 'Content-Type': 'application/json' }
 		});
 	}

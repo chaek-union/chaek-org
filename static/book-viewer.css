@@ -123,95 +123,16 @@
 	padding: 0.5rem 0;
 }
 
-.toc-section {
-	border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
 .toc-section-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	padding: 0.75rem 1.25rem;
-	background: none;
-	border: none;
-	cursor: pointer;
-	font-size: 0.9rem;
-	font-weight: 600;
-	color: var(--text-primary);
-	font-family: inherit;
-	text-align: left;
-	transition: background 0.15s;
-}
-
-.toc-section-header:hover {
-	background: rgba(0, 0, 0, 0.03);
-}
-
-.toc-section-header .chevron {
-	transition: transform 0.2s;
-	flex-shrink: 0;
-}
-
-.toc-section-header.expanded .chevron {
-	transform: rotate(180deg);
-}
-
-.toc-items {
-	list-style: none;
-	margin: 0;
-	padding: 0 0 0.5rem 0;
-}
-
-.toc-items li {
-	list-style: none;
-}
-
-.toc-items li a {
-	display: block;
-	padding: 0.5rem 1.25rem 0.5rem 2rem;
-	color: var(--text-secondary);
-	text-decoration: none;
+	padding: 0.75rem 1.25rem 0.5rem;
 	font-size: 0.85rem;
-	transition: all 0.15s;
-	border-left: 3px solid transparent;
-}
-
-.toc-items li a:hover {
-	background: rgba(0, 0, 0, 0.03);
-	color: var(--text-primary);
-}
-
-.toc-items li.active > a {
-	color: white;
-	background: var(--color-primary);
 	font-weight: 600;
-	border-left-color: var(--color-primary);
+	color: var(--text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
 }
 
-.toc-subitems {
-	list-style: none;
-	margin: 0;
-	padding: 0;
-}
-
-.toc-subitems li a {
-	padding-left: 3rem;
-	font-size: 0.82rem;
-}
-
-.toc-subitems li.active > a {
-	color: white;
-	background: var(--color-primary);
-	font-weight: 600;
-}
-
-/* Top-level nav items (non-header) */
-.toc-item {
-	border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-.toc-item a {
+.toc-link {
 	display: block;
 	padding: 0.75rem 1.25rem;
 	color: var(--text-secondary);
@@ -221,12 +142,12 @@
 	border-left: 3px solid transparent;
 }
 
-.toc-item a:hover {
+.toc-link:hover {
 	background: rgba(0, 0, 0, 0.03);
 	color: var(--text-primary);
 }
 
-.toc-item.active a {
+.toc-link.active {
 	color: white;
 	background: var(--color-primary);
 	font-weight: 600;

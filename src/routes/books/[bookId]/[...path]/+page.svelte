@@ -20,36 +20,6 @@
 	let chatbotWidth = $state(350);
 	let isResizing = $state(false);
 
-	// Track which header sections are expanded
-	let expandedSections = $state<Set<string>>(new Set());
-
-	// Auto-expand the section containing the current page (additive, never collapses user-expanded)
-	$effect(() => {
-		const currentPath = data.currentPath;
-		for (const item of data.navigation) {
-			if (item.isHeader && item.children) {
-				const hasActivePage = flattenItems(item.children).some(
-					(child) => child.path === currentPath
-				);
-				if (hasActivePage && !expandedSections.has(item.title)) {
-					const next = new Set(expandedSections);
-					next.add(item.title);
-					expandedSections = next;
-				}
-			}
-		}
-	});
-
-	function toggleSection(title: string) {
-		const next = new Set(expandedSections);
-		if (next.has(title)) {
-			next.delete(title);
-		} else {
-			next.add(title);
-		}
-		expandedSections = next;
-	}
-
 	// Flatten nav items to get ordered list of pages
 	function flattenItems(items: NavItem[]): NavItem[] {
 		const result: NavItem[] = [];
@@ -415,58 +385,37 @@
 				<nav class="toc-nav">
 					{#each data.navigation as item}
 						{#if item.isHeader}
-							<div class="toc-section">
-								<button
-									class="toc-section-header"
-									class:expanded={expandedSections.has(item.title)}
-									onclick={() => toggleSection(item.title)}
-								>
-									<span>{item.title}</span>
-									<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<polyline points="6 9 12 15 18 9" />
-									</svg>
-								</button>
-								{#if expandedSections.has(item.title) && item.children}
-									<ul class="toc-items">
-										{#each item.children as child}
-											{@const isActive = child.path === data.currentPath}
-											{@const displayTitle = child.title === '__INTRODUCTION__' ? $t('book.introduction') : child.title}
-											<li class:active={isActive}>
-												{#if child.path}
-													<a href="/books/{data.book.id}/{child.path.replace(/\.md$/, '')}">{displayTitle}</a>
-												{:else}
-													<span>{displayTitle}</span>
-												{/if}
-												{#if child.children}
-													<ul class="toc-subitems">
-														{#each child.children as subchild}
-															{@const isSubActive = subchild.path === data.currentPath}
-															{@const subDisplayTitle = subchild.title === '__INTRODUCTION__' ? $t('book.introduction') : subchild.title}
-															<li class:active={isSubActive}>
-																{#if subchild.path}
-																	<a href="/books/{data.book.id}/{subchild.path.replace(/\.md$/, '')}">{subDisplayTitle}</a>
-																{:else}
-																	<span>{subDisplayTitle}</span>
-																{/if}
-															</li>
-														{/each}
-													</ul>
-												{/if}
-											</li>
+							<div class="toc-section-header">{item.title}</div>
+							{#if item.children}
+								{#each item.children as child}
+									{@const isActive = child.path === data.currentPath}
+									{@const displayTitle = child.title === '__INTRODUCTION__' ? $t('book.introduction') : child.title}
+									<a
+										class="toc-link"
+										class:active={isActive}
+										href="/books/{data.book.id}/{child.path?.replace(/\.md$/, '') ?? ''}"
+									>{displayTitle}</a>
+									{#if child.children}
+										{#each child.children as subchild}
+											{@const isSubActive = subchild.path === data.currentPath}
+											{@const subDisplayTitle = subchild.title === '__INTRODUCTION__' ? $t('book.introduction') : subchild.title}
+											<a
+												class="toc-link"
+												class:active={isSubActive}
+												href="/books/{data.book.id}/{subchild.path?.replace(/\.md$/, '') ?? ''}"
+											>{subDisplayTitle}</a>
 										{/each}
-									</ul>
-								{/if}
-							</div>
+									{/if}
+								{/each}
+							{/if}
 						{:else}
 							{@const isActive = item.path === data.currentPath}
 							{@const displayTitle = item.title === '__INTRODUCTION__' ? $t('book.introduction') : item.title}
-							<div class="toc-item" class:active={isActive}>
-								{#if item.path}
-									<a href="/books/{data.book.id}/{item.path.replace(/\.md$/, '')}">{displayTitle}</a>
-								{:else}
-									<span>{displayTitle}</span>
-								{/if}
-							</div>
+							<a
+								class="toc-link"
+								class:active={isActive}
+								href="/books/{data.book.id}/{item.path?.replace(/\.md$/, '') ?? ''}"
+							>{displayTitle}</a>
 						{/if}
 					{/each}
 				</nav>
