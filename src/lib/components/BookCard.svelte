@@ -39,20 +39,11 @@
 	</div>
 
 	<div class="book-info">
-		<h3 class="book-title">{hasPdf ? 'PDF' : ''}{name}</h3>
+		<h3 class="book-title">{name}</h3>
 
 		{#if formattedDate}
 			<p class="book-date">{$t('books.lastUpdated')}: {formattedDate}</p>
 		{/if}
-
-		<div class="book-badge">
-			<svg width="14" height="14" viewBox="0 0 496 512" fill="currentColor">
-				<path
-					d="M245.8 214.9l-33.2 17.3c-9.4-19.6-25.2-20-27.4-20-22.2 0-33.3 14.6-33.3 46 0 30.8 10.3 46.3 33.1 46.3 8.3 0 25.7-4 31.6-24l34 11.6c-8.4 24.7-29.3 44-68 44-48.6 0-73.3-31.8-73.3-78 0-45.2 24.4-78 73.3-78 32.8 0 55.4 14.9 63.2 34.8zm130 0l-33.2 17.3c-9.4-19.6-25.2-20-27.4-20-22.2 0-33.3 14.6-33.3 46 0 30.8 10.3 46.3 33.1 46.3 8.3 0 25.7-4 31.6-24l34 11.6c-8.4 24.7-29.3 44-68 44-48.6 0-73.3-31.8-73.3-78 0-45.2 24.4-78 73.3-78 32.8 0 55.4 14.9 63.2 34.8zM248 8C111 8 0 119 0 256s111 248 248 248 248-111 248-248S385 8 248 8zm0 448c-110.3 0-200-89.7-200-200S137.7 56 248 56s200 89.7 200 200-89.7 200-200 200z"
-				/>
-			</svg>
-			<span>{$t('books.openSource')}</span>
-		</div>
 
 		<div class="book-actions">
 			<a href="/books/{id}" class="btn-read">{$t('books.readOnline')}</a>
@@ -122,19 +113,7 @@
 		color: var(--text-muted);
 	}
 
-	.book-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.3rem;
-		font-size: 0.75rem;
-		color: var(--color-primary);
-		background: var(--color-primary-light);
-		padding: 0.2rem 0.5rem;
-		border-radius: 4px;
-		width: fit-content;
-	}
-
-	.book-actions {
+.book-actions {
 		display: flex;
 		gap: 0.5rem;
 		margin-top: auto;

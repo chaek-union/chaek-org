@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { t, locale } from '$lib/i18n';
-	import { signIn } from '@auth/sveltekit/client';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
 
 	let { data } = $props();
@@ -30,13 +29,7 @@
 				{$t('nav.contribute')}
 			</a>
 
-			{#if !session}
-				<button class="login-btn" onclick={() => signIn('github')}>
-					{$t('nav.login')}
-				</button>
-			{/if}
-
-			<LanguageSwitcher />
+<LanguageSwitcher />
 		</div>
 	</div>
 </nav>
@@ -108,25 +101,7 @@
 		color: var(--color-primary);
 	}
 
-	.login-btn {
-		border: 1.5px solid var(--color-primary);
-		color: var(--color-primary);
-		background: transparent;
-		border-radius: 20px;
-		padding: 0.45rem 1.25rem;
-		font-weight: 600;
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.2s;
-		font-family: inherit;
-	}
-
-	.login-btn:hover {
-		background: var(--color-primary);
-		color: white;
-	}
-
-	@media (max-width: 768px) {
+@media (max-width: 768px) {
 		.navbar-container {
 			padding: 0.6rem 1rem;
 		}
