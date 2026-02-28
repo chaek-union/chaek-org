@@ -16,7 +16,9 @@
 
 		return () => {
 			script.remove();
-			if (wrapper) wrapper.style.top = '0';
+			document.getElementById('kasra-family-bar')?.remove();
+			document.body.style.marginTop = '';
+			if (wrapper) wrapper.style.top = '';
 		};
 	});
 
