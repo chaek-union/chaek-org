@@ -1,8 +1,24 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import { t } from '$lib/i18n';
+	import { onMount } from 'svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import BookCard from '$lib/components/BookCard.svelte';
+
+	onMount(() => {
+		const script = document.createElement('script');
+		script.src = 'https://kasra.kr/kasra-family-bar.js';
+		script.dataset.current = 'Chaek';
+		document.body.appendChild(script);
+
+		const wrapper = document.querySelector('.content-wrapper') as HTMLElement;
+		if (wrapper) wrapper.style.top = '32px';
+
+		return () => {
+			script.remove();
+			if (wrapper) wrapper.style.top = '0';
+		};
+	});
 
 	let { data }: { data: PageData } = $props();
 

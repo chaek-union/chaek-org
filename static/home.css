@@ -1,5 +1,9 @@
 /* Home Page Styles */
 
+.navbar {
+	position: static;
+}
+
 /* Hero Section */
 .hero {
 	background: linear-gradient(rgba(30, 80, 80, 0.55), rgba(30, 80, 80, 0.55)),
