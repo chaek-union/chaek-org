@@ -34,8 +34,7 @@ export async function callLLM(
 			model: options.model || modelName || 'anthropic/claude-3.5-sonnet',
 			messages,
 			max_tokens: options.maxTokens,
-			temperature: options.temperature,
-			reasoning: { exclude: true }
+			temperature: options.temperature
 		})
 	});
 
@@ -80,7 +79,6 @@ export async function callLLMStream(
 			messages,
 			max_tokens: options.maxTokens,
 			temperature: options.temperature,
-			reasoning: { exclude: true },
 			stream: true
 		})
 	});

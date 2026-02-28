@@ -23,20 +23,21 @@
 	// Track which header sections are expanded
 	let expandedSections = $state<Set<string>>(new Set());
 
-	// Auto-expand the section containing the current page
+	// Auto-expand the section containing the current page (additive, never collapses user-expanded)
 	$effect(() => {
-		const newExpanded = new Set<string>();
+		const currentPath = data.currentPath;
 		for (const item of data.navigation) {
 			if (item.isHeader && item.children) {
 				const hasActivePage = flattenItems(item.children).some(
-					(child) => child.path === data.currentPath
+					(child) => child.path === currentPath
 				);
-				if (hasActivePage) {
-					newExpanded.add(item.title);
+				if (hasActivePage && !expandedSections.has(item.title)) {
+					const next = new Set(expandedSections);
+					next.add(item.title);
+					expandedSections = next;
 				}
 			}
 		}
-		expandedSections = newExpanded;
 	});
 
 	function toggleSection(title: string) {
