@@ -3,7 +3,7 @@
 	import type { NavItem } from '$lib/server/summary-parser';
 	import { t } from '$lib/i18n';
 	import { goto } from '$app/navigation';
-	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
+	import Navbar from '$lib/components/Navbar.svelte';
 	import ChatBot from '$lib/components/ChatBot.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -19,6 +19,60 @@
 	let chatbotVisible = $state(false);
 	let chatbotWidth = $state(350);
 	let isResizing = $state(false);
+
+	// Track which header sections are expanded
+	let expandedSections = $state<Set<string>>(new Set());
+
+	// Auto-expand the section containing the current page
+	$effect(() => {
+		const newExpanded = new Set<string>();
+		for (const item of data.navigation) {
+			if (item.isHeader && item.children) {
+				const hasActivePage = flattenItems(item.children).some(
+					(child) => child.path === data.currentPath
+				);
+				if (hasActivePage) {
+					newExpanded.add(item.title);
+				}
+			}
+		}
+		expandedSections = newExpanded;
+	});
+
+	function toggleSection(title: string) {
+		const next = new Set(expandedSections);
+		if (next.has(title)) {
+			next.delete(title);
+		} else {
+			next.add(title);
+		}
+		expandedSections = next;
+	}
+
+	// Flatten nav items to get ordered list of pages
+	function flattenItems(items: NavItem[]): NavItem[] {
+		const result: NavItem[] = [];
+		for (const item of items) {
+			if (item.path) result.push(item);
+			if (item.children) result.push(...flattenItems(item.children));
+		}
+		return result;
+	}
+
+	const allPages = $derived(flattenItems(data.navigation));
+	const currentPageIndex = $derived(allPages.findIndex((p) => p.path === data.currentPath));
+	const prevPage = $derived(currentPageIndex > 0 ? allPages[currentPageIndex - 1] : null);
+	const nextPage = $derived(
+		currentPageIndex >= 0 && currentPageIndex < allPages.length - 1
+			? allPages[currentPageIndex + 1]
+			: null
+	);
+
+	function navigateTo(page: NavItem | null) {
+		if (!page?.path) return;
+		const urlPath = page.path.replace(/\.md$/, '');
+		goto(`/books/${data.book.id}/${urlPath}`);
+	}
 
 	// Set chatbot visibility based on screen size on mount
 	$effect(() => {
@@ -72,15 +126,11 @@
 
 	// Apply highlights whenever content changes
 	$effect(() => {
-		// Track data.htmlContent and currentPath to re-run when page changes
 		data.htmlContent;
 		data.currentPath;
 
-		// Re-apply highlights if we have search terms
 		if (highlightTerms.length > 0) {
-			// Use setTimeout to ensure DOM is updated
 			setTimeout(async () => {
-				// Only scroll to top if URL doesn't have an anchor
 				if (!window.location.hash) {
 					const wrapper = document.querySelector('.book-content-wrapper');
 					if (wrapper) {
@@ -89,12 +139,9 @@
 				}
 
 				highlightSearchTerms();
-
-				// Scroll to first highlight after images loaded
 				await updateCurrentHighlight(true);
 			}, 0);
 		} else {
-			// No search active, scroll to top only if no anchor in URL
 			if (!window.location.hash) {
 				const wrapper = document.querySelector('.book-content-wrapper');
 				if (wrapper) {
@@ -119,11 +166,7 @@
 			}
 
 			const indexData = await response.json();
-
-			// Import lunr dynamically
 			const lunr = (await import('lunr')).default;
-
-			// Load the pre-built index
 			searchIndex = lunr.Index.load(indexData.index);
 			searchDocuments = indexData.documents || [];
 		} catch (err) {
@@ -139,7 +182,6 @@
 			return;
 		}
 
-		// Debounce search
 		if (searchTimeout) clearTimeout(searchTimeout);
 
 		searchTimeout = setTimeout(async () => {
@@ -153,25 +195,29 @@
 					throw new Error('Search index not loaded');
 				}
 
-				// Perform client-side search with Lunr using wildcards for partial matching
-				// Add wildcard to each term for fuzzy matching
-				const terms = searchQuery.trim().split(/\s+/).filter(Boolean);
-				const wildcardQuery = terms.map(term => `*${term}*`).join(' ');
+				const terms = searchQuery
+					.trim()
+					.split(/\s+/)
+					.filter(Boolean);
+				const wildcardQuery = terms.map((term) => `*${term}*`).join(' ');
 				const results = searchIndex.search(wildcardQuery);
 
-				// Map results to our format
-				searchResults = results.map((result: any) => {
-					const doc = searchDocuments.find((d: any) => d.id === result.ref);
-					return {
-						path: result.ref,
-						title: doc?.title || result.ref,
-						chapter: doc?.chapter || '',
-						score: result.score
-					};
-				}).slice(0, 10); // Limit to top 10 results
+				searchResults = results
+					.map((result: any) => {
+						const doc = searchDocuments.find((d: any) => d.id === result.ref);
+						return {
+							path: result.ref,
+							title: doc?.title || result.ref,
+							chapter: doc?.chapter || '',
+							score: result.score
+						};
+					})
+					.slice(0, 10);
 
-				// Extract search terms for highlighting
-				highlightTerms = searchQuery.trim().split(/\s+/).filter(Boolean);
+				highlightTerms = searchQuery
+					.trim()
+					.split(/\s+/)
+					.filter(Boolean);
 				highlightSearchTerms();
 			} catch (err) {
 				console.error('Search failed:', err);
@@ -191,16 +237,12 @@
 
 		removeHighlights();
 
-		// Create a regex for all search terms
-		const pattern = highlightTerms.map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+		const pattern = highlightTerms
+			.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+			.join('|');
 		const regex = new RegExp(`(${pattern})`, 'gi');
 
-		// Walk through text nodes and highlight
-		const walker = document.createTreeWalker(
-			contentDiv,
-			NodeFilter.SHOW_TEXT,
-			null
-		);
+		const walker = document.createTreeWalker(contentDiv, NodeFilter.SHOW_TEXT, null);
 
 		const nodesToReplace: { node: Node; parent: Node }[] = [];
 		let node: Node | null;
@@ -220,7 +262,6 @@
 			parent.replaceChild(span, node);
 		});
 
-		// Collect all highlights and set current to first one
 		allHighlights = Array.from(document.querySelectorAll('.search-highlight'));
 		currentHighlightIndex = 0;
 	}
@@ -239,21 +280,18 @@
 	}
 
 	async function updateCurrentHighlight(waitForImages = false) {
-		// Remove current class from all
-		allHighlights.forEach(el => el.classList.remove('search-highlight-current'));
+		allHighlights.forEach((el) => el.classList.remove('search-highlight-current'));
 
-		// Add current class to active highlight
 		if (allHighlights.length > 0 && currentHighlightIndex < allHighlights.length) {
 			const current = allHighlights[currentHighlightIndex];
 			current.classList.add('search-highlight-current');
 
-			// Wait for images to load if requested (for initial page load)
 			if (waitForImages) {
 				const contentDiv = document.querySelector('.book-content');
 				if (contentDiv) {
 					const images = Array.from(contentDiv.querySelectorAll('img'));
 					await Promise.all(
-						images.map(img => {
+						images.map((img) => {
 							if (img.complete) return Promise.resolve();
 							return new Promise((resolve) => {
 								img.addEventListener('load', resolve);
@@ -270,7 +308,8 @@
 
 	function goToPrevHighlight() {
 		if (allHighlights.length === 0) return;
-		currentHighlightIndex = (currentHighlightIndex - 1 + allHighlights.length) % allHighlights.length;
+		currentHighlightIndex =
+			(currentHighlightIndex - 1 + allHighlights.length) % allHighlights.length;
 		updateCurrentHighlight();
 	}
 
@@ -280,54 +319,9 @@
 		updateCurrentHighlight();
 	}
 
-	function renderNavigation(items: NavItem[], level = 0, filterPaths: Set<string> | null = null): string {
-		let html = '<ul class="summary">';
-
-		for (const item of items) {
-			// If filtering, check if this item or its children match
-			if (filterPaths && !item.isHeader) {
-				const hasMatch = item.path && filterPaths.has(item.path);
-				const hasChildMatch = item.children?.some(child =>
-					child.path && filterPaths.has(child.path)
-				);
-
-				if (!hasMatch && !hasChildMatch) {
-					continue;
-				}
-			}
-
-			if (item.isHeader) {
-				html += `<li class="header">${item.title}</li>`;
-				if (item.children) {
-					html += renderNavigation(item.children, level, filterPaths);
-				}
-			} else {
-				const isActive = item.path === data.currentPath;
-				const activeClass = isActive ? ' class="active"' : '';
-				html += `<li${activeClass}>`;
-				if (item.path) {
-					// Translate special __INTRODUCTION__ marker
-					const displayTitle = item.title === '__INTRODUCTION__' ? $t('book.introduction') : item.title;
-					// Remove .md extension from URL
-					const urlPath = item.path.replace(/\.md$/, '');
-					html += `<a href="/books/${data.book.id}/${urlPath}">${displayTitle}</a>`;
-				} else {
-					html += `<span>${item.title}</span>`;
-				}
-				if (item.children) {
-					html += renderNavigation(item.children, level + 1, filterPaths);
-				}
-				html += '</li>';
-			}
-		}
-
-		html += '</ul>';
-		return html;
-	}
-
 	// Get set of filtered paths from search results
 	const filteredPaths = $derived(
-		searchResults.length > 0 ? new Set(searchResults.map(r => r.path)) : null
+		searchResults.length > 0 ? new Set(searchResults.map((r) => r.path)) : null
 	);
 
 	function handleLinkClick(e: MouseEvent) {
@@ -339,29 +333,23 @@
 		const href = link.getAttribute('href');
 		if (!href) return;
 
-		// Handle anchor links (same page)
 		if (href.startsWith('#')) {
 			e.preventDefault();
 			const id = href.substring(1);
-			// Use getElementById which doesn't require CSS selector escaping
 			const element = document.getElementById(id);
 			if (element) {
 				element.scrollIntoView({ behavior: 'auto', block: 'start' });
-				// Update URL hash without triggering navigation
 				history.replaceState(null, '', window.location.pathname + href);
 			}
 			return;
 		}
 
-		// Handle internal markdown links
 		if (href.endsWith('.md') && !href.startsWith('http') && !href.startsWith('//')) {
 			e.preventDefault();
 
-			// Remove .md extension
 			let targetPath = href.replace(/\.md$/, '');
 
 			if (href.startsWith('../')) {
-				// Cross-book navigation
 				const match = href.match(/^\.\.\/([^\/]+)\/(.*)\.md$/);
 				if (match) {
 					const [, bookId, path] = match;
@@ -370,9 +358,15 @@
 				}
 			}
 
-			// Same book navigation
 			goto(`/books/${data.book.id}/${targetPath}`);
 		}
+	}
+
+	// Check if a nav item or its children contain the active page
+	function isItemActive(item: NavItem): boolean {
+		if (item.path === data.currentPath) return true;
+		if (item.children) return item.children.some(isItemActive);
+		return false;
 	}
 </script>
 
@@ -382,21 +376,7 @@
 </svelte:head>
 
 <div class="book-viewer-wrapper">
-	<header>
-		<button class="hamburger" onclick={toggleSidebar} aria-label="Toggle menu">
-			<span></span>
-			<span></span>
-			<span></span>
-		</button>
-
-		<div class="header-content">
-			<a href="/" class="back-link">← {$t('nav.backToList')}</a>
-			<h1>{data.book.name}</h1>
-		</div>
-		<div class="header-actions">
-			<LanguageSwitcher />
-		</div>
-	</header>
+	<Navbar {data} fullWidth />
 
 	<div class="book-viewer">
 		<!-- Sidebar overlay for mobile -->
@@ -407,6 +387,16 @@
 		{/if}
 
 		<div class="book-sidebar" class:open={sidebarOpen}>
+			<div class="sidebar-header">
+				<h3 class="toc-title">{$t('book.toc')}</h3>
+				<button class="hamburger mobile-close" onclick={closeSidebar} aria-label="Close menu">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<line x1="18" y1="6" x2="6" y2="18" />
+						<line x1="6" y1="6" x2="18" y2="18" />
+					</svg>
+				</button>
+			</div>
+
 			<div class="book-search">
 				<input
 					type="search"
@@ -421,8 +411,63 @@
 			{:else if searchQuery && searchResults.length === 0}
 				<div class="no-results">{$t('book.noResults')}</div>
 			{:else}
-				<nav>
-					{@html renderNavigation(data.navigation, 0, filteredPaths)}
+				<nav class="toc-nav">
+					{#each data.navigation as item}
+						{#if item.isHeader}
+							<div class="toc-section">
+								<button
+									class="toc-section-header"
+									class:expanded={expandedSections.has(item.title)}
+									onclick={() => toggleSection(item.title)}
+								>
+									<span>{item.title}</span>
+									<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<polyline points="6 9 12 15 18 9" />
+									</svg>
+								</button>
+								{#if expandedSections.has(item.title) && item.children}
+									<ul class="toc-items">
+										{#each item.children as child}
+											{@const isActive = child.path === data.currentPath}
+											{@const displayTitle = child.title === '__INTRODUCTION__' ? $t('book.introduction') : child.title}
+											<li class:active={isActive}>
+												{#if child.path}
+													<a href="/books/{data.book.id}/{child.path.replace(/\.md$/, '')}">{displayTitle}</a>
+												{:else}
+													<span>{displayTitle}</span>
+												{/if}
+												{#if child.children}
+													<ul class="toc-subitems">
+														{#each child.children as subchild}
+															{@const isSubActive = subchild.path === data.currentPath}
+															{@const subDisplayTitle = subchild.title === '__INTRODUCTION__' ? $t('book.introduction') : subchild.title}
+															<li class:active={isSubActive}>
+																{#if subchild.path}
+																	<a href="/books/{data.book.id}/{subchild.path.replace(/\.md$/, '')}">{subDisplayTitle}</a>
+																{:else}
+																	<span>{subDisplayTitle}</span>
+																{/if}
+															</li>
+														{/each}
+													</ul>
+												{/if}
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</div>
+						{:else}
+							{@const isActive = item.path === data.currentPath}
+							{@const displayTitle = item.title === '__INTRODUCTION__' ? $t('book.introduction') : item.title}
+							<div class="toc-item" class:active={isActive}>
+								{#if item.path}
+									<a href="/books/{data.book.id}/{item.path.replace(/\.md$/, '')}">{displayTitle}</a>
+								{:else}
+									<span>{displayTitle}</span>
+								{/if}
+							</div>
+						{/if}
+					{/each}
 				</nav>
 			{/if}
 		</div>
@@ -431,25 +476,37 @@
 			<div class="book-main">
 				{#if highlightTerms.length > 0 && allHighlights.length > 0}
 					<div class="search-navigation">
-						<button
-							onclick={goToPrevHighlight}
-							class="nav-button"
-						>
+						<button onclick={goToPrevHighlight} class="nav-button">
 							← Previous
 						</button>
 						<span class="search-position">
 							{currentHighlightIndex + 1} / {allHighlights.length}
 						</span>
-						<button
-							onclick={goToNextHighlight}
-							class="nav-button"
-						>
+						<button onclick={goToNextHighlight} class="nav-button">
 							Next →
 						</button>
 					</div>
 				{/if}
 
 				<div class="book-content-wrapper">
+					<!-- Chapter navigation top -->
+					<div class="chapter-nav">
+						{#if prevPage}
+							<button class="chapter-nav-btn" onclick={() => navigateTo(prevPage)}>
+								{$t('book.prevChapter')}
+							</button>
+						{:else}
+							<div></div>
+						{/if}
+						{#if nextPage}
+							<button class="chapter-nav-btn" onclick={() => navigateTo(nextPage)}>
+								{$t('book.nextChapter')}
+							</button>
+						{:else}
+							<div></div>
+						{/if}
+					</div>
+
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="book-content" onclick={handleLinkClick}>
@@ -460,13 +517,37 @@
 
 			{#if chatbotVisible}
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="resize-handle" onmousedown={startResize} role="separator" aria-orientation="vertical"></div>
+				<div
+					class="resize-handle"
+					onmousedown={startResize}
+					role="separator"
+					aria-orientation="vertical"
+				></div>
 				<div class="book-chatbot" style="width: {chatbotWidth}px;">
-					<ChatBot bookId={data.book.id} bookName={data.book.name} isVisible={chatbotVisible} onToggle={toggleChatbot} />
+					<ChatBot
+						bookId={data.book.id}
+						bookName={data.book.name}
+						isVisible={chatbotVisible}
+						onToggle={toggleChatbot}
+					/>
 				</div>
 			{:else}
-				<ChatBot bookId={data.book.id} bookName={data.book.name} isVisible={false} onToggle={toggleChatbot} />
+				<ChatBot
+					bookId={data.book.id}
+					bookName={data.book.name}
+					isVisible={false}
+					onToggle={toggleChatbot}
+				/>
 			{/if}
 		</div>
 	</div>
+
+	<!-- Mobile sidebar toggle -->
+	<button class="mobile-menu-btn" onclick={toggleSidebar} aria-label="Toggle menu">
+		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+			<line x1="3" y1="12" x2="21" y2="12" />
+			<line x1="3" y1="6" x2="21" y2="6" />
+			<line x1="3" y1="18" x2="21" y2="18" />
+		</svg>
+	</button>
 </div>

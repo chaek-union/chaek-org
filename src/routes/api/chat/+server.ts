@@ -1,7 +1,6 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { parseSummary, getBookRoot, type NavItem } from '$lib/server/summary-parser';
-import { callLLM, type LLMMessage } from '$lib/server/llm';
+import { callLLM, callLLMStream, type LLMMessage } from '$lib/server/llm';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -41,9 +40,10 @@ Instructions:
 2. Reference the full section content provided above to answer accurately
 3. Suggest related sections for further reading using format: [Section Title](path/to/file.md)
 4. Be concise but thorough
-5. If the question relates to previous messages, maintain continuity in your responses`;
+5. If the question relates to previous messages, maintain continuity in your responses
+6. Use markdown formatting for your responses (bold, lists, code blocks, etc.)`;
 
-		// Call LLM with full conversation history
+		// Call LLM with streaming
 		const llmMessages: LLMMessage[] = [
 			{ role: 'system', content: systemPrompt },
 			...messages.map((m: any) => ({
@@ -52,12 +52,66 @@ Instructions:
 			}))
 		];
 
-		const assistantMessage = await callLLM(llmMessages);
+		const upstreamResponse = await callLLMStream(llmMessages);
 
-		return json({ message: assistantMessage });
+		if (!upstreamResponse.body) {
+			throw new Error('No response body from LLM');
+		}
+
+		// Pipe the SSE stream through to the client
+		const reader = upstreamResponse.body.getReader();
+		const decoder = new TextDecoder();
+
+		const stream = new ReadableStream({
+			async pull(controller) {
+				const { done, value } = await reader.read();
+				if (done) {
+					controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+					controller.close();
+					return;
+				}
+
+				const chunk = decoder.decode(value, { stream: true });
+				const lines = chunk.split('\n');
+
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+					const data = trimmed.slice(6);
+					if (data === '[DONE]') {
+						controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+						continue;
+					}
+
+					try {
+						const parsed = JSON.parse(data);
+						const content = parsed.choices?.[0]?.delta?.content;
+						if (content) {
+							controller.enqueue(
+								new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`)
+							);
+						}
+					} catch {
+						// Skip malformed lines
+					}
+				}
+			}
+		});
+
+		return new Response(stream, {
+			headers: {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive'
+			}
+		});
 	} catch (error) {
 		console.error('Chat API error:', error);
-		return json({ error: 'Failed to process chat message' }, { status: 500 });
+		return new Response(JSON.stringify({ error: 'Failed to process chat message' }), {
+			status: 500,
+			headers: { 'Content-Type': 'application/json' }
+		});
 	}
 };
 
@@ -82,7 +136,6 @@ function buildBookStructure(navigation: NavItem[], level = 0): string {
 
 async function findRelevantSections(bookRoot: string, navigation: NavItem[], query: string) {
 	try {
-		// Step 1: Build chapter list (top-level items)
 		const chapters = navigation.map((item, i) => ({
 			index: i,
 			title: item.title,
@@ -91,7 +144,6 @@ async function findRelevantSections(bookRoot: string, navigation: NavItem[], que
 
 		const chapterList = chapters.map((c, i) => `${i}. ${c.title}`).join('\n');
 
-		// Step 2: Find most relevant chapters using LLM
 		const chapterPrompt = `Given this user question: "${query}"
 
 And these available chapters from the textbook:
@@ -112,10 +164,9 @@ Select the 2-3 most relevant chapter numbers (just the numbers, comma-separated)
 			.slice(0, 3);
 
 		if (selectedChapterIndices.length === 0) {
-			selectedChapterIndices.push(0); // Fallback to first chapter
+			selectedChapterIndices.push(0);
 		}
 
-		// Step 3: Collect sections from selected chapters
 		const sectionsInChapters: Array<{ title: string; path: string; chapterTitle: string }> = [];
 
 		for (const chapterIdx of selectedChapterIndices) {
@@ -146,7 +197,6 @@ Select the 2-3 most relevant chapter numbers (just the numbers, comma-separated)
 			}
 		}
 
-		// Step 4: Find most relevant sections within selected chapters
 		const sectionList = sectionsInChapters
 			.map((s, i) => `${i}. ${s.chapterTitle} > ${s.title}`)
 			.join('\n');
@@ -170,7 +220,6 @@ Select the 2-3 most relevant section numbers (just the numbers, comma-separated)
 			.filter((n: number) => !isNaN(n) && n >= 0 && n < sectionsInChapters.length)
 			.slice(0, 3);
 
-		// Step 5: Read full content of selected sections
 		const relevantSections = [];
 		for (const idx of selectedSectionIndices) {
 			const section = sectionsInChapters[idx];
@@ -180,7 +229,7 @@ Select the 2-3 most relevant section numbers (just the numbers, comma-separated)
 				relevantSections.push({
 					title: `${section.chapterTitle} > ${section.title}`,
 					path: section.path,
-					content: content // Full content, not truncated
+					content: content
 				});
 			} catch (error) {
 				console.error(`Failed to read section ${section.path}:`, error);
@@ -190,7 +239,6 @@ Select the 2-3 most relevant section numbers (just the numbers, comma-separated)
 		return relevantSections;
 	} catch (error) {
 		console.error('Error in LLM section selection:', error);
-		// Fallback: return first section
 		const fallback = navigation[0];
 		if (fallback?.path) {
 			try {

@@ -2,7 +2,7 @@
 	import { t, locale } from '$lib/i18n';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
 
-	let { data } = $props();
+	let { data, fullWidth = false }: { data: any; fullWidth?: boolean } = $props();
 
 	const session = $derived(data?.session);
 	const isChaekMember = $derived((session?.user as any)?.isChaekMember);
@@ -10,7 +10,7 @@
 </script>
 
 <nav class="navbar">
-	<div class="navbar-container">
+	<div class="navbar-container" class:full-width={fullWidth}>
 		<div class="navbar-brand">
 			<img src={logoSrc} alt={$t('app.title')} class="brand-logo" />
 			<a href="/" class="logo-link logo-link-left" aria-label={$t('app.title')}></a>
@@ -51,6 +51,10 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+	}
+
+	.navbar-container.full-width {
+		max-width: none;
 	}
 
 	.navbar-brand {

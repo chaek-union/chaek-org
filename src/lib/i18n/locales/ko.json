@@ -14,7 +14,9 @@
 		"login": "로그인"
 	},
 	"hero": {
-		"headline": "오픈 소스 대학 교재 플랫폼, ",
+		"headlinePrefix": "",
+		"headlineBold": "오픈 소스",
+		"headline": " 대학 교재 플랫폼, ",
 		"headlineHighlight": "chaek",
 		"headlineSuffix": "",
 		"searchPlaceholder": "교재 제목을 검색하세요..."
@@ -70,12 +72,21 @@
 		"search": "검색...",
 		"searchResults": "검색 결과",
 		"noResults": "결과가 없습니다",
-		"introduction": "들어가며"
+		"introduction": "들어가며",
+		"toc": "목차",
+		"prevChapter": "이전 장",
+		"nextChapter": "다음 장"
 	},
 	"chatbot": {
-		"title": "AI 도우미",
+		"title": "Chaek AI - 오픈소스 도우미",
 		"welcome": "안녕하세요! 이 책을 더 잘 이해하도록 도와드릴까요?",
 		"hint": "책의 내용, 개념, 주제에 대해 무엇이든 물어보세요.",
-		"placeholder": "메시지를 입력하세요... (엔터키로 전송)"
+		"placeholder": "질문을 입력하세요..."
+	},
+	"readerFooter": {
+		"platform": "플랫폼 정보",
+		"openSource": "오픈소스 리어신스",
+		"privacy": "개인정보 처리방침",
+		"copyright": "Open Source text:book"
 	}
 }

@@ -14,7 +14,9 @@
 		"login": "Login"
 	},
 	"hero": {
-		"headline": "Open Source Textbook Platform, ",
+		"headlinePrefix": "",
+		"headlineBold": "Open Source",
+		"headline": " Textbook Platform, ",
 		"headlineHighlight": "chaek",
 		"headlineSuffix": "",
 		"searchPlaceholder": "Search textbooks by title..."
@@ -70,12 +72,21 @@
 		"search": "Search...",
 		"searchResults": "Search Results",
 		"noResults": "No results found",
-		"introduction": "Introduction"
+		"introduction": "Introduction",
+		"toc": "Table of Contents",
+		"prevChapter": "Previous",
+		"nextChapter": "Next"
 	},
 	"chatbot": {
-		"title": "AI Assistant",
+		"title": "Chaek AI - Open Source Assistant",
 		"welcome": "Hello! How can I help you understand this book better?",
 		"hint": "Ask me anything about the content, concepts, or topics in this book.",
-		"placeholder": "Type your message... (Press Enter to send)"
+		"placeholder": "Type your question..."
+	},
+	"readerFooter": {
+		"platform": "Platform Info",
+		"openSource": "Open Source License",
+		"privacy": "Privacy Policy",
+		"copyright": "Open Source text:book"
 	}
 }

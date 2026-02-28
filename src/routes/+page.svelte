@@ -37,7 +37,7 @@
 
 <main>
 	<section class="hero">
-		<h1>{$t('hero.headline')}<strong>{$t('hero.headlineHighlight')}</strong>{$t('hero.headlineSuffix')}</h1>
+		<h1>{$t('hero.headlinePrefix')}<strong>{$t('hero.headlineBold')}</strong>{$t('hero.headline')}<strong>{$t('hero.headlineHighlight')}</strong>{$t('hero.headlineSuffix')}</h1>
 		<div class="hero-search">
 			<svg
 				class="search-icon"

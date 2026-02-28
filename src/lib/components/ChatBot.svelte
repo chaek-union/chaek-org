@@ -14,6 +14,7 @@
 	// Get messages from store for this book
 	let messages = $derived($chatbotMessages[bookId] || []);
 	let isLoading = $state(false);
+	let streamingContent = $state('');
 
 	async function sendMessage(content: string) {
 		if (!content.trim() || isLoading) return;
@@ -25,6 +26,7 @@
 			[bookId]: newMessages
 		}));
 		isLoading = true;
+		streamingContent = '';
 
 		try {
 			const response = await fetch('/api/chat', {
@@ -40,10 +42,42 @@
 				throw new Error('Failed to send message');
 			}
 
-			const data = await response.json();
+			const reader = response.body?.getReader();
+			if (!reader) throw new Error('No response body');
+
+			const decoder = new TextDecoder();
+			let accumulated = '';
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				const chunk = decoder.decode(value, { stream: true });
+				const lines = chunk.split('\n');
+
+				for (const line of lines) {
+					const trimmed = line.trim();
+					if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+					const data = trimmed.slice(6);
+					if (data === '[DONE]') continue;
+
+					try {
+						const parsed = JSON.parse(data);
+						if (parsed.content) {
+							accumulated += parsed.content;
+							streamingContent = accumulated;
+						}
+					} catch {
+						// Skip malformed
+					}
+				}
+			}
+
+			// Save final message to store
 			chatbotMessages.update((state) => ({
 				...state,
-				[bookId]: [...newMessages, { role: 'assistant' as const, content: data.message }]
+				[bookId]: [...newMessages, { role: 'assistant' as const, content: accumulated }]
 			}));
 		} catch (error) {
 			console.error('Chat error:', error);
@@ -56,6 +90,7 @@
 			}));
 		} finally {
 			isLoading = false;
+			streamingContent = '';
 		}
 	}
 
@@ -95,7 +130,7 @@
 		</div>
 
 		<div class="chatbot-messages">
-			{#if messages.length === 0}
+			{#if messages.length === 0 && !isLoading}
 				<div class="chatbot-empty">
 					<p>{$t('chatbot.welcome')}</p>
 					<p class="chatbot-hint">{$t('chatbot.hint')}</p>
@@ -105,7 +140,11 @@
 					<ChatMessage role={message.role} content={message.content} />
 				{/each}
 				{#if isLoading}
-					<ChatMessage role="assistant" content="..." isLoading={true} />
+					{#if streamingContent}
+						<ChatMessage role="assistant" content={streamingContent} />
+					{:else}
+						<ChatMessage role="assistant" content="" isLoading={true} />
+					{/if}
 				{/if}
 			{/if}
 		</div>
@@ -144,9 +183,9 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 0.5rem 0.75rem;
+		padding: 0.6rem 0.75rem;
 		border-bottom: 1px solid var(--border-color);
-		background: var(--bg-gray);
+		background: var(--color-primary);
 		flex-shrink: 0;
 	}
 
@@ -155,14 +194,15 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-weight: 600;
-		font-size: 0.9rem;
-		color: var(--text-primary);
+		font-size: 0.85rem;
+		color: white;
 	}
 
 	.chatbot-icon {
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		color: white;
 	}
 
 	.chatbot-actions {
@@ -175,17 +215,17 @@
 		border: none;
 		cursor: pointer;
 		padding: 0.25rem;
-		opacity: 0.6;
+		opacity: 0.7;
 		transition: opacity 0.2s;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: var(--text-secondary);
+		color: white;
 	}
 
 	.btn-icon:hover {
 		opacity: 1;
-		color: var(--text-primary);
+		color: white;
 	}
 
 	.chatbot-messages {
@@ -221,9 +261,9 @@
 		width: 3rem;
 		height: 3rem;
 		border-radius: 50%;
-		background: #e8f2fc;
-		color: #3b82f6;
-		border: 2px solid #bdd7f0;
+		background: var(--color-primary-light);
+		color: var(--color-primary);
+		border: 2px solid var(--color-primary);
 		cursor: pointer;
 		font-size: 1.5rem;
 		display: flex;
@@ -236,8 +276,8 @@
 
 	.chatbot-toggle:hover {
 		transform: scale(1.1);
-		border-color: #93c5fd;
-		background: #f0f7ff;
+		background: var(--color-primary);
+		color: white;
 		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 	}
 

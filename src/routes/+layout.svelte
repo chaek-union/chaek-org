@@ -32,4 +32,20 @@
 	.footer {
 		flex-shrink: 0;
 	}
+
+	@media print {
+		.content-wrapper {
+			position: static;
+			height: auto;
+			overflow: visible;
+		}
+
+		.content {
+			overflow: visible !important;
+		}
+
+		.footer {
+			display: none !important;
+		}
+	}
 </style>
