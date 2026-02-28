@@ -1,22 +1,39 @@
 <script lang="ts">
-	import { t } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
+	import { signIn } from '@auth/sveltekit/client';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
 
 	let { data } = $props();
 
 	const session = $derived(data?.session);
 	const isChaekMember = $derived((session?.user as any)?.isChaekMember);
+	const logoSrc = $derived($locale === 'ko' ? '/chaek-logo-kr.png' : '/chaek-logo-en.png');
 </script>
 
 <nav class="navbar">
 	<div class="navbar-container">
-		<a href="/" class="navbar-brand">
-			<span class="brand-icon">📚</span>
-			<span class="brand-text">{$t('app.title')}</span>
-		</a>
+		<div class="navbar-brand">
+			<img src={logoSrc} alt={$t('app.title')} class="brand-logo" />
+			<a href="/" class="logo-link logo-link-left" aria-label={$t('app.title')}></a>
+			<a href="https://kasra.kr" target="_blank" rel="noopener noreferrer" class="logo-link logo-link-right" aria-label="KASRA"></a>
+		</div>
 		<div class="navbar-actions">
 			{#if isChaekMember}
 				<a href="/builds" class="nav-link">{$t('nav.builds')}</a>
+			{/if}
+			<a
+				href="https://github.com/chaek-union"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="nav-link hide-mobile"
+			>
+				{$t('nav.contribute')}
+			</a>
+
+			{#if !session}
+				<button class="login-btn" onclick={() => signIn('github')}>
+					{$t('nav.login')}
+				</button>
 			{/if}
 
 			<LanguageSwitcher />
@@ -31,78 +48,99 @@
 		width: 100%;
 		background: white;
 		border-bottom: 1px solid #e0e0e0;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 		z-index: 1000;
 	}
 
 	.navbar-container {
 		max-width: 1400px;
 		margin: 0 auto;
-		padding: 1rem 2rem;
+		padding: 0.75rem 2rem;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 	}
 
 	.navbar-brand {
+		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
-		text-decoration: none;
-		color: #333;
-		font-size: 1.5rem;
-		font-weight: 700;
-		transition: opacity 0.2s;
 	}
 
-	.navbar-brand:hover {
-		opacity: 0.8;
+	.brand-logo {
+		height: 40px;
+		width: auto;
 	}
 
-	.brand-icon {
-		font-size: 1.8rem;
-		line-height: 1;
+	.logo-link {
+		position: absolute;
+		top: 0;
+		bottom: 0;
 	}
 
-	.brand-text {
-		line-height: 1;
+	.logo-link-left {
+		left: 0;
+		width: 55%;
+	}
+
+	.logo-link-right {
+		right: 0;
+		width: 45%;
 	}
 
 	.navbar-actions {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
 	.nav-link {
-		color: #333;
+		color: var(--text-primary);
 		text-decoration: none;
 		font-weight: 500;
-		padding: 0.5rem 1rem;
+		padding: 0.5rem 0.75rem;
 		border-radius: 8px;
 		transition: all 0.2s;
+		font-size: 0.9rem;
 	}
 
 	.nav-link:hover {
 		background: #f8f9fa;
-		color: #4285f4;
+		color: var(--color-primary);
 	}
 
-	@media (max-width: 1024px) {
+	.login-btn {
+		border: 1.5px solid var(--color-primary);
+		color: var(--color-primary);
+		background: transparent;
+		border-radius: 20px;
+		padding: 0.45rem 1.25rem;
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.2s;
+		font-family: inherit;
+	}
+
+	.login-btn:hover {
+		background: var(--color-primary);
+		color: white;
+	}
+
+	@media (max-width: 768px) {
 		.navbar-container {
-			padding: 0.75rem 1rem;
+			padding: 0.6rem 1rem;
 		}
 
-		.navbar-brand {
-			font-size: 1.25rem;
+		.brand-logo {
+			height: 32px;
 		}
 
-		.brand-icon {
-			font-size: 1.5rem;
+		.hide-mobile {
+			display: none;
 		}
 
 		.navbar-actions {
-			gap: 0.5rem;
+			gap: 0.25rem;
 		}
 	}
 </style>

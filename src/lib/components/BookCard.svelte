@@ -1,195 +1,207 @@
 <script lang="ts">
 	import { t, locale } from '$lib/i18n';
 
-	export let id: string;
-	export let name: string;
-	export let description: string | undefined = undefined;
-	export let lastUpdated: string | undefined = undefined;
-	export let hasPdf: boolean | undefined = false;
+	let {
+		id,
+		name,
+		description,
+		lastUpdated,
+		hasPdf
+	}: {
+		id: string;
+		name: string;
+		description?: string;
+		lastUpdated?: string | Date;
+		hasPdf?: boolean;
+	} = $props();
+
+	function hashColor(str: string): string {
+		let hash = 0;
+		for (let i = 0; i < str.length; i++) {
+			hash = str.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		const h = Math.abs(hash) % 360;
+		return `hsl(${h}, 35%, 82%)`;
+	}
+
+	const coverColor = hashColor(id);
+
+	const formattedDate = $derived(
+		lastUpdated
+			? new Date(lastUpdated).toLocaleDateString($locale === 'ko' ? 'ko-KR' : 'en-US')
+			: null
+	);
 </script>
 
-<div class="book-card-wrapper">
-	<a href="/books/{id}" class="book-card">
-		<div class="card-content">
-			<h3>{name}</h3>
-			{#if description}
-				<p class="description">{description}</p>
-			{/if}
-			{#if lastUpdated}
-				<p class="updated">
-					{$t('books.lastUpdated')}: {new Date(lastUpdated).toLocaleDateString(
-						$locale === 'ko' ? 'ko-KR' : 'en-US'
-					)}
-				</p>
-			{/if}
-		</div>
-		<div class="card-arrow">
-			<svg
-				width="20"
-				height="20"
-				viewBox="0 0 20 20"
-				fill="none"
-				xmlns="http://www.w3.org/2000/svg"
-			>
+<div class="book-card">
+	<div class="book-cover" style="background-color: {coverColor}">
+		<span class="cover-icon">📖</span>
+	</div>
+
+	<div class="book-info">
+		<h3 class="book-title">{hasPdf ? 'PDF' : ''}{name}</h3>
+
+		{#if formattedDate}
+			<p class="book-date">{$t('books.lastUpdated')}: {formattedDate}</p>
+		{/if}
+
+		<div class="book-badge">
+			<svg width="14" height="14" viewBox="0 0 496 512" fill="currentColor">
 				<path
-					d="M7.5 15L12.5 10L7.5 5"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
+					d="M245.8 214.9l-33.2 17.3c-9.4-19.6-25.2-20-27.4-20-22.2 0-33.3 14.6-33.3 46 0 30.8 10.3 46.3 33.1 46.3 8.3 0 25.7-4 31.6-24l34 11.6c-8.4 24.7-29.3 44-68 44-48.6 0-73.3-31.8-73.3-78 0-45.2 24.4-78 73.3-78 32.8 0 55.4 14.9 63.2 34.8zm130 0l-33.2 17.3c-9.4-19.6-25.2-20-27.4-20-22.2 0-33.3 14.6-33.3 46 0 30.8 10.3 46.3 33.1 46.3 8.3 0 25.7-4 31.6-24l34 11.6c-8.4 24.7-29.3 44-68 44-48.6 0-73.3-31.8-73.3-78 0-45.2 24.4-78 73.3-78 32.8 0 55.4 14.9 63.2 34.8zM248 8C111 8 0 119 0 256s111 248 248 248 248-111 248-248S385 8 248 8zm0 448c-110.3 0-200-89.7-200-200S137.7 56 248 56s200 89.7 200 200-89.7 200-200 200z"
 				/>
 			</svg>
+			<span>{$t('books.openSource')}</span>
 		</div>
-	</a>
-	{#if hasPdf}
-		<a href="/books/{id}/{id}.pdf" class="pdf-button" target="_blank" rel="noopener noreferrer">
-			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-				<path d="M8 11L4 7h2.5V1h3v6H12L8 11z" fill="currentColor"/>
-				<path d="M14 14H2v-2h12v2z" fill="currentColor"/>
-			</svg>
-			PDF
-		</a>
-	{:else}
-		<button class="pdf-button disabled" disabled>
-			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-				<path d="M8 11L4 7h2.5V1h3v6H12L8 11z" fill="currentColor"/>
-				<path d="M14 14H2v-2h12v2z" fill="currentColor"/>
-			</svg>
-			PDF
-		</button>
-	{/if}
+
+		<div class="book-actions">
+			<a href="/books/{id}" class="btn-read">{$t('books.readOnline')}</a>
+			{#if hasPdf}
+				<a
+					href="/books/{id}/{id}.pdf"
+					class="btn-download"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					{$t('books.download')}
+				</a>
+			{:else}
+				<button class="btn-download" disabled>{$t('books.download')}</button>
+			{/if}
+		</div>
+	</div>
 </div>
 
 <style>
-	.book-card-wrapper {
-		position: relative;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		height: 100%;
-	}
-
 	.book-card {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
 		gap: 1rem;
-		padding: 1.5rem;
-		border: 1px solid #e0e0e0;
-		border-radius: 12px;
-		text-decoration: none;
-		color: inherit;
-		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		padding: 1.25rem;
 		background: white;
-		position: relative;
-		overflow: hidden;
-		flex: 1;
-	}
-
-	.book-card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: linear-gradient(90deg, #4285f4, #34a853);
-		transform: scaleX(0);
-		transform-origin: left;
-		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-	}
-
-	.book-card:hover::before {
-		transform: scaleX(1);
+		border: 1px solid var(--border-color);
+		border-radius: var(--border-radius);
+		transition: box-shadow 0.2s, transform 0.2s;
 	}
 
 	.book-card:hover {
-		border-color: #4285f4;
-		box-shadow: 0 8px 24px rgba(66, 133, 244, 0.15);
-		transform: translateY(-4px);
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+		transform: translateY(-2px);
 	}
 
-	.book-card:hover .card-arrow {
-		transform: translateX(4px);
-		color: #4285f4;
-	}
-
-	.card-content {
-		flex: 1;
-	}
-
-	.book-card h3 {
-		margin: 0 0 0.5rem 0;
-		color: #333;
-		font-size: 1.25rem;
-		font-weight: 600;
-		text-transform: capitalize;
-	}
-
-	.book-card .description {
-		color: #666;
-		margin: 0 0 0.75rem 0;
-		line-height: 1.6;
-		font-size: 0.95rem;
-	}
-
-	.book-card .updated {
-		margin: 0;
-		font-size: 0.85rem;
-		color: #999;
-	}
-
-	.card-arrow {
-		color: #ccc;
-		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	.book-cover {
+		width: 80px;
+		min-height: 100px;
+		border-radius: 6px;
 		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.5rem;
 	}
 
-	.pdf-button {
+	.book-info {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+
+	.book-title {
+		font-size: 1rem;
+		font-weight: 600;
+		margin: 0;
+		color: var(--text-primary);
+		text-transform: capitalize;
+		line-height: 1.3;
+	}
+
+	.book-date {
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.book-badge {
 		display: inline-flex;
 		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.75rem;
+		color: var(--color-primary);
+		background: var(--color-primary-light);
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+		width: fit-content;
+	}
+
+	.book-actions {
+		display: flex;
 		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: #4285f4;
+		margin-top: auto;
+		padding-top: 0.5rem;
+	}
+
+	.btn-read {
+		flex: 1;
+		text-align: center;
+		padding: 0.5rem 0.75rem;
+		border: 1.5px solid var(--color-primary);
+		border-radius: 6px;
+		color: var(--color-primary);
+		background: transparent;
+		text-decoration: none;
+		font-size: 0.8rem;
+		font-weight: 600;
+		transition: all 0.2s;
+	}
+
+	.btn-read:hover {
+		background: var(--color-primary);
 		color: white;
+	}
+
+	.btn-download {
+		flex: 1;
+		text-align: center;
+		padding: 0.5rem 0.75rem;
 		border: none;
 		border-radius: 6px;
-		font-size: 0.9rem;
-		font-weight: 500;
+		background: var(--color-primary);
+		color: white;
 		text-decoration: none;
+		font-size: 0.8rem;
+		font-weight: 600;
 		cursor: pointer;
 		transition: all 0.2s;
-		align-self: flex-start;
+		font-family: inherit;
 	}
 
-	.pdf-button:hover:not(.disabled) {
-		background: #3367d6;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 8px rgba(66, 133, 244, 0.3);
+	.btn-download:hover:not(:disabled) {
+		background: var(--color-primary-hover);
 	}
 
-	.pdf-button.disabled {
+	.btn-download:disabled {
 		background: #ccc;
 		cursor: not-allowed;
 		opacity: 0.6;
 	}
 
-	@media (max-width: 1024px) {
+	@media (max-width: 768px) {
 		.book-card {
-			padding: 1.25rem;
+			padding: 1rem;
 		}
 
-		.book-card h3 {
-			font-size: 1.1rem;
+		.book-cover {
+			width: 60px;
+			min-height: 80px;
 		}
 
-		.book-card .description {
+		.book-title {
 			font-size: 0.9rem;
 		}
 
-		.pdf-button {
-			font-size: 0.85rem;
-			padding: 0.45rem 0.85rem;
+		.book-actions {
+			flex-direction: column;
 		}
 	}
 </style>

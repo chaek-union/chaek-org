@@ -7,13 +7,31 @@
 	"nav": {
 		"home": "Home",
 		"backToList": "Back to list",
-		"builds": "Build Logs"
+		"builds": "Build Logs",
+		"categories": "Categories",
+		"myLibrary": "My Library",
+		"contribute": "Contribute",
+		"login": "Login"
+	},
+	"hero": {
+		"headline": "Open Source Textbook Platform, ",
+		"headlineHighlight": "chaek",
+		"headlineSuffix": "",
+		"searchPlaceholder": "Search textbooks by title..."
+	},
+	"filter": {
+		"title": "Filter",
+		"allBooks": "All Textbooks",
+		"withPdf": "With PDF"
 	},
 	"books": {
 		"title": "Textbooks",
 		"empty": "No textbooks available yet.",
 		"lastUpdated": "Last updated",
-		"available": "available"
+		"available": "available",
+		"readOnline": "Read Online",
+		"download": "Download",
+		"openSource": "Open Source"
 	},
 	"auth": {
 		"signIn": "Sign in with GitHub",

@@ -6,6 +6,25 @@
 
 	let { data }: { data: PageData } = $props();
 
+	let searchQuery = $state('');
+	let filterPdf = $state(false);
+
+	const pdfCount = $derived(data.books.filter((b) => b.hasPdf).length);
+
+	const filteredBooks = $derived(
+		data.books.filter((book) => {
+			if (searchQuery.trim() !== '') {
+				if (!book.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+					return false;
+				}
+			}
+			if (filterPdf && !book.hasPdf) {
+				return false;
+			}
+			return true;
+		})
+	);
+
 	const pageTitle = $derived(`${$t('app.title')} - ${$t('app.subtitle')}`);
 </script>
 
@@ -18,32 +37,59 @@
 
 <main>
 	<section class="hero">
-		<h1>{$t('app.subtitle')}</h1>
-		<p class="hero-description">{$t('app.description')}</p>
-	</section>
-
-	<section class="books">
-		<div class="books-header">
-			<h2>{$t('books.title')}</h2>
-			{#if data.books.length > 0}
-				<span class="book-count">{data.books.length} {$t('books.available')}</span>
-			{/if}
+		<h1>{$t('hero.headline')}<strong>{$t('hero.headlineHighlight')}</strong>{$t('hero.headlineSuffix')}</h1>
+		<div class="hero-search">
+			<svg
+				class="search-icon"
+				width="20"
+				height="20"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+			>
+				<circle cx="11" cy="11" r="8" />
+				<path d="m21 21-4.35-4.35" />
+			</svg>
+			<input
+				type="text"
+				placeholder={$t('hero.searchPlaceholder')}
+				bind:value={searchQuery}
+			/>
 		</div>
-
-		{#if data.books.length === 0}
-			<p class="empty">{$t('books.empty')}</p>
-		{:else}
-			<div class="grid grid-auto">
-				{#each data.books as book}
-					<BookCard
-						id={book.id}
-						name={book.name}
-						description={book.description}
-						lastUpdated={book.lastUpdated}
-						hasPdf={book.hasPdf}
-					/>
-				{/each}
-			</div>
-		{/if}
 	</section>
+
+	<div class="content-layout">
+		<aside class="filter-sidebar">
+			<h3 class="filter-title">{$t('filter.title')}</h3>
+			<div class="filter-group">
+				<label class="filter-checkbox">
+					<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
+					<span>{$t('filter.allBooks')} ({data.books.length})</span>
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" bind:checked={filterPdf} />
+					<span>{$t('filter.withPdf')} ({pdfCount})</span>
+				</label>
+			</div>
+		</aside>
+
+		<section class="books" id="books">
+			{#if filteredBooks.length === 0}
+				<p class="empty">{$t('books.empty')}</p>
+			{:else}
+				<div class="grid grid-auto">
+					{#each filteredBooks as book}
+						<BookCard
+							id={book.id}
+							name={book.name}
+							description={book.description}
+							lastUpdated={book.lastUpdated}
+							hasPdf={book.hasPdf}
+						/>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	</div>
 </main>

@@ -7,13 +7,31 @@
 	"nav": {
 		"home": "홈",
 		"backToList": "목록으로 돌아가기",
-		"builds": "빌드 로그"
+		"builds": "빌드 로그",
+		"categories": "카테고리",
+		"myLibrary": "내 서재",
+		"contribute": "기여하기",
+		"login": "로그인"
+	},
+	"hero": {
+		"headline": "오픈 소스 대학 교재 플랫폼, ",
+		"headlineHighlight": "chaek",
+		"headlineSuffix": "",
+		"searchPlaceholder": "교재 제목을 검색하세요..."
+	},
+	"filter": {
+		"title": "필터",
+		"allBooks": "전체 교재",
+		"withPdf": "PDF 제공"
 	},
 	"books": {
 		"title": "교재 목록",
 		"empty": "아직 등록된 교재가 없습니다.",
 		"lastUpdated": "마지막 업데이트",
-		"available": "개 교재"
+		"available": "개 교재",
+		"readOnline": "온라인 읽기",
+		"download": "다운로드",
+		"openSource": "오픈소스"
 	},
 	"auth": {
 		"signIn": "GitHub 로그인",

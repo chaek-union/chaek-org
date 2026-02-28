@@ -97,7 +97,7 @@
 	}
 
 	.dropdown-trigger:hover {
-		border-color: #4285f4;
+		border-color: var(--color-primary);
 		background: #f8f9fa;
 	}
 
@@ -163,9 +163,9 @@
 	}
 
 	.dropdown-item.active {
-		color: #4285f4;
+		color: var(--color-primary);
 		font-weight: 600;
-		background: #f0f7ff;
+		background: var(--color-primary-light);
 	}
 
 	@media (max-width: 1024px) {

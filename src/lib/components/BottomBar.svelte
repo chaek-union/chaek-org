@@ -67,14 +67,14 @@
 	}
 
 	.footer-text a {
-		color: #4285f4;
+		color: var(--color-primary);
 		text-decoration: none;
 		transition: all 0.2s;
 	}
 
 	.footer-text a:hover {
 		text-decoration: underline;
-		color: #3367d6;
+		color: var(--color-primary-hover);
 	}
 
 	.admin-login-btn {
