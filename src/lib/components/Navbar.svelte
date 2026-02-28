@@ -47,7 +47,7 @@
 	.navbar-container {
 		max-width: 1400px;
 		margin: 0 auto;
-		padding: 0.75rem 2rem;
+		padding: 1rem 2rem;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -64,7 +64,7 @@
 	}
 
 	.brand-logo {
-		height: 40px;
+		height: 50px;
 		width: auto;
 	}
 
@@ -76,12 +76,12 @@
 
 	.logo-link-left {
 		left: 0;
-		width: 55%;
+		width: 62%;
 	}
 
 	.logo-link-right {
 		right: 0;
-		width: 45%;
+		width: 38%;
 	}
 
 	.navbar-actions {
@@ -111,7 +111,7 @@
 		}
 
 		.brand-logo {
-			height: 32px;
+			height: 36px;
 		}
 
 		.hide-mobile {
