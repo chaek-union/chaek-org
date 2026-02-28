@@ -78,7 +78,7 @@
 		"nextChapter": "Next"
 	},
 	"chatbot": {
-		"title": "Chaek AI - Open Source Assistant",
+		"title": "Chaek AI",
 		"welcome": "Hello! How can I help you understand this book better?",
 		"hint": "Ask me anything about the content, concepts, or topics in this book.",
 		"placeholder": "Type your question...",
