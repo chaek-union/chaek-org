@@ -12,16 +12,12 @@
 .hero h1 {
 	font-size: 2.5rem;
 	margin: 0 0 0.5rem 0;
-	font-weight: 400;
+	font-weight: 700;
 	max-width: 800px;
 	margin-left: auto;
 	margin-right: auto;
 	color: white;
 	line-height: 1.5;
-}
-
-.hero h1 strong {
-	font-weight: 700;
 }
 
 .hero-subtitle {
