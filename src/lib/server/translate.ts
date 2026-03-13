@@ -9,6 +9,12 @@ const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 const bookLanguageCache = new Map<string, 'ko' | 'en'>();
 const preTranslateInProgress = new Set<string>();
 
+const VLLM_BASE_URL = env.VLLM_BASE_URL || 'http://10.125.208.42:9241';
+const VLLM_MODEL = env.VLLM_MODEL || '';
+const VLLM_TIMEOUT_MS = 120_000;
+
+const LANG_NAMES: Record<string, string> = { ko: 'Korean', en: 'English' };
+
 // ── Language detection ─────────────────────────────────────────────────────
 
 export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
@@ -57,57 +63,87 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 	return lang;
 }
 
-// ── DeepL API ──────────────────────────────────────────────────────────────
+// ── vLLM API ──────────────────────────────────────────────────────────────
 
-async function callDeepL(text: string, sourceLang: string, targetLang: string, useXml = false): Promise<string> {
-	const results = await callDeepLBatch([text], sourceLang, targetLang, useXml);
-	return results[0];
+async function resolveModel(): Promise<string> {
+	if (VLLM_MODEL) return VLLM_MODEL;
+
+	const response = await fetch(`${VLLM_BASE_URL}/v1/models`);
+	if (!response.ok) throw new Error(`Failed to list models: ${response.status}`);
+	const data = await response.json();
+	const id = data?.data?.[0]?.id;
+	if (!id) throw new Error('No models available on vLLM server');
+	return id;
 }
 
-async function callDeepLBatch(texts: string[], sourceLang: string, targetLang: string, useXml = false): Promise<string[]> {
-	const authKey = env.DEEPL_AUTHKEY;
-	if (!authKey) {
-		console.warn('[translate] DEEPL_AUTHKEY not set, skipping translation');
-		return texts;
-	}
+let cachedModel: string | null = null;
 
-	const baseUrl = authKey.endsWith(':fx')
-		? 'https://api-free.deepl.com/v2/translate'
-		: 'https://api.deepl.com/v2/translate';
+async function getModel(): Promise<string> {
+	if (!cachedModel) cachedModel = await resolveModel();
+	return cachedModel;
+}
 
-	const params = new URLSearchParams();
-	for (const t of texts) params.append('text', t);
-	params.append('source_lang', sourceLang.toUpperCase());
-	params.append('target_lang', targetLang.toUpperCase());
-	if (useXml) {
-		params.append('tag_handling', 'xml');
-		params.append('ignore_tags', 'x');
-	}
+async function callLLM(prompt: string, text: string): Promise<string> {
+	const model = await getModel();
 
-	const response = await fetch(baseUrl, {
+	const response = await fetch(`${VLLM_BASE_URL}/v1/chat/completions`, {
 		method: 'POST',
-		headers: {
-			'Authorization': `DeepL-Auth-Key ${authKey}`,
-			'Content-Type': 'application/x-www-form-urlencoded'
-		},
-		body: params.toString()
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			model,
+			messages: [
+				{ role: 'system', content: prompt },
+				{ role: 'user', content: text }
+			],
+			temperature: 0.1,
+			max_tokens: 2048
+		}),
+		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
 	});
 
 	if (!response.ok) {
 		const errorText = await response.text();
-		console.error(`[translate] DeepL API error ${response.status}: ${errorText}`);
-		return texts;
+		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
 	}
 
 	const data = await response.json();
-	return data.translations.map((t: { text: string }) => t.text);
+	return data.choices[0].message.content.trim();
+}
+
+function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown: boolean): string {
+	const src = LANG_NAMES[sourceLang] || sourceLang;
+	const tgt = LANG_NAMES[targetLang] || targetLang;
+
+	if (isMarkdown) {
+		return [
+			`You are a professional translator. Translate the following Markdown from ${src} to ${tgt}.`,
+			'Rules:',
+			'- Preserve ALL Markdown formatting exactly (headings, lists, bold, italic, links, etc.)',
+			'- Preserve all <x id="..."/> placeholder tags exactly as-is, do not translate or modify them',
+			'- Do not add, remove, or reorder any structural elements',
+			'- Translate only the natural language text content',
+			'- Do not wrap the output in code fences or add any extra text',
+			'- Output ONLY the translated Markdown, nothing else'
+		].join('\n');
+	}
+
+	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Output ONLY the translation, nothing else.`;
+}
+
+async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false): Promise<string> {
+	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown);
+	return callLLM(prompt, text);
+}
+
+async function translateBatch(texts: string[], sourceLang: string, targetLang: string): Promise<string[]> {
+	const results: string[] = [];
+	for (let i = 0; i < texts.length; i++) {
+		results.push(await translateSingle(texts[i], sourceLang, targetLang));
+	}
+	return results;
 }
 
 // ── Markdown protection ────────────────────────────────────────────────────
-
-function xmlEscape(s: string): string {
-	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function protectMarkdown(markdown: string): { text: string; restore: (translated: string) => string } {
 	const protected_: string[] = [];
@@ -115,7 +151,8 @@ function protectMarkdown(markdown: string): { text: string; restore: (translated
 	function protect(content: string): string {
 		const idx = protected_.length;
 		protected_.push(content);
-		return `<x id="${idx}">${xmlEscape(content)}</x>`;
+		// Use a single-line placeholder so chunking on \n\n never splits a protected block
+		return `<x id="${idx}"/>`;
 	}
 
 	let result = markdown;
@@ -132,7 +169,7 @@ function protectMarkdown(markdown: string): { text: string; restore: (translated
 	result = result.replace(/(<(?:br|hr|img)[^>]*\/?>)/gi, (_, tag) => protect(tag));
 
 	function restore(translated: string): string {
-		return translated.replace(/<x id="(\d+)">[\s\S]*?<\/x>/g, (_, idStr) => {
+		return translated.replace(/<x id="(\d+)"\/>/g, (_, idStr) => {
 			const id = parseInt(idStr, 10);
 			return id < protected_.length ? protected_[id] : '';
 		});
@@ -159,18 +196,13 @@ function chunkMarkdown(text: string, maxChunk: number): string[] {
 }
 
 async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string): Promise<string> {
-	const { text: xmlText, restore } = protectMarkdown(markdown);
-	const chunks = chunkMarkdown(xmlText, 30000);
+	const { text: protectedText, restore } = protectMarkdown(markdown);
+	const chunks = chunkMarkdown(protectedText, 1500);
 
-	const BATCH_SIZE = 10;
-	const translatedChunks: string[] = new Array(chunks.length);
-
-	for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-		const batch = chunks.slice(i, i + BATCH_SIZE);
-		const results = await callDeepLBatch(batch, sourceLang, targetLang, true);
-		for (let j = 0; j < results.length; j++) {
-			translatedChunks[i + j] = results[j];
-		}
+	const translatedChunks: string[] = [];
+	for (const chunk of chunks) {
+		const translated = await translateSingle(chunk, sourceLang, targetLang, true);
+		translatedChunks.push(translated);
 	}
 
 	return restore(translatedChunks.join('\n\n'));
@@ -186,7 +218,7 @@ function pageCacheExists(bookId: string, targetLang: string, pagePath: string): 
 	return fs.access(getTranslationCachePath(bookId, targetLang, pagePath)).then(() => true).catch(() => false);
 }
 
-// ── Public API (cache-only reads, no DeepL on page visit) ──────────────────
+// ── Public API (cache-only reads) ───────────────────────────────────────────
 
 /**
  * Read translated page from cache. Returns original if not cached.
@@ -281,7 +313,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 			collectTitles(navigation);
 
 			if (titles.length > 0) {
-				const translatedTitles = await callDeepLBatch(titles, bookLang, targetLocale);
+				const translatedTitles = await translateBatch(titles, bookLang, targetLocale);
 				let idx = 0;
 				function applyTitles(items: typeof navigation): typeof navigation {
 					return items.map((item) => {
@@ -309,31 +341,56 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				const bookJsonPath = path.join(process.cwd(), 'books', bookId, 'book.json');
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
 				if (bookJson.title) {
-					const translated = await callDeepL(bookJson.title, bookLang, targetLocale);
+					const translated = await translateSingle(bookJson.title, bookLang, targetLocale);
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
 				}
 			} catch { /* no book.json or no title */ }
 		}
 
-		// 3. All pages
-		for (const filePath of filePaths) {
-			if (await pageCacheExists(bookId, targetLocale, filePath)) continue;
+		// 3. All pages (with retry)
+		const MAX_RETRIES = 3;
+		let pending = [...filePaths];
+		const finalFailed: string[] = [];
 
-			try {
-				const fullPath = path.join(bookRoot, filePath);
-				let markdown = await fs.readFile(fullPath, 'utf-8');
-				markdown = await processMarkdown(bookId, markdown);
-				const translated = await translateMarkdownContent(markdown, bookLang, targetLocale);
+		for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+			const failedThisRound: string[] = [];
 
-				const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);
-				await fs.mkdir(path.dirname(cachePath), { recursive: true });
-				await fs.writeFile(cachePath, translated, 'utf-8');
+			for (const filePath of pending) {
+				if (await pageCacheExists(bookId, targetLocale, filePath)) continue;
 
-				console.log(`[translate] Cached ${bookId}/${filePath} → ${targetLocale}`);
-			} catch (err) {
-				console.error(`[translate] Failed to translate ${bookId}/${filePath}:`, err);
+				try {
+					const fullPath = path.join(bookRoot, filePath);
+					let markdown = await fs.readFile(fullPath, 'utf-8');
+					markdown = await processMarkdown(bookId, markdown);
+					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale);
+
+					const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);
+					await fs.mkdir(path.dirname(cachePath), { recursive: true });
+					await fs.writeFile(cachePath, translated, 'utf-8');
+
+					console.log(`[translate] Cached ${bookId}/${filePath} → ${targetLocale}`);
+				} catch (err) {
+					console.error(`[translate] Attempt ${attempt}/${MAX_RETRIES} failed for ${bookId}/${filePath}:`, err);
+					failedThisRound.push(filePath);
+				}
 			}
+
+			if (failedThisRound.length === 0) break;
+
+			if (attempt < MAX_RETRIES) {
+				const retryDelay = attempt * 2000;
+				console.log(`[translate] Retrying ${failedThisRound.length} failed pages in ${retryDelay}ms...`);
+				await new Promise(r => setTimeout(r, retryDelay));
+				pending = failedThisRound;
+			} else {
+				finalFailed.push(...failedThisRound);
+			}
+		}
+
+		if (finalFailed.length > 0) {
+			console.error(`[translate] ${finalFailed.length} pages failed after ${MAX_RETRIES} attempts for ${bookId} → ${targetLocale}: ${finalFailed.join(', ')}`);
+			throw new Error(`Translation incomplete: ${finalFailed.length} pages failed after ${MAX_RETRIES} retries (${finalFailed.join(', ')})`);
 		}
 
 		console.log(`[translate] Pre-translation complete: ${bookId} → ${targetLocale}`);
@@ -356,7 +413,8 @@ export async function invalidateBookTranslations(bookId: string): Promise<void> 
 		console.log(`[translate] Invalidated translation cache for ${bookId}`);
 	} catch { /* non-critical */ }
 
-	// Re-translate in background for both locales
-	preTranslateBook(bookId, 'ko').catch(console.error);
-	preTranslateBook(bookId, 'en').catch(console.error);
+	// Re-translate in background sequentially
+	preTranslateBook(bookId, 'ko')
+		.then(() => preTranslateBook(bookId, 'en'))
+		.catch(console.error);
 }

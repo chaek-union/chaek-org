@@ -36,10 +36,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		if (targetLocale) {
 			await preTranslateBook(bookId, targetLocale);
 		} else {
-			await Promise.all([
-				preTranslateBook(bookId, 'ko'),
-				preTranslateBook(bookId, 'en')
-			]);
+			await preTranslateBook(bookId, 'ko');
+			await preTranslateBook(bookId, 'en');
 		}
 		return json({ status: 'completed', bookId, locale: targetLocale || 'both' });
 	} catch (err) {

@@ -29,6 +29,7 @@ services:
       - .:/app
       - /app/node_modules
       - ./books:/app/books
+      - ./data:/app/data
     restart: unless-stopped
     depends_on:
       db:
@@ -41,7 +42,8 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
-      - DEEPL_AUTHKEY=${DEEPL_AUTHKEY}
+      - VLLM_BASE_URL=${VLLM_BASE_URL}
+      - VLLM_MODEL=${VLLM_MODEL}
 
 volumes:
   postgres_data_dev:

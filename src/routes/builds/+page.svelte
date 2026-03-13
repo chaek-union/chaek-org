@@ -11,6 +11,7 @@
 	let error = $state<string | null>(null);
 	let translatingBooks = $state<Set<string>>(new Set());
 	let translatingAll = $state(false);
+	let translateErrors = $state<Array<{ bookId: string; message: string }>>([]);
 
 	const pageTitle = $derived(`${$t('builds.title')} - ${$t('app.title')}`);
 
@@ -36,12 +37,20 @@
 		}
 	}
 
+	function dismissTranslateError(index: number) {
+		translateErrors = translateErrors.filter((_, i) => i !== index);
+	}
+
 	async function triggerTranslate(bookId: string) {
 		translatingBooks = new Set([...translatingBooks, bookId]);
 		try {
-			await fetch(`/api/books/${bookId}/translate`, { method: 'POST' });
+			const res = await fetch(`/api/books/${bookId}/translate`, { method: 'POST' });
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+				translateErrors = [...translateErrors, { bookId, message: body.error || `HTTP ${res.status}` }];
+			}
 		} catch (e) {
-			console.error('Error triggering translation:', e);
+			translateErrors = [...translateErrors, { bookId, message: String(e) }];
 		} finally {
 			translatingBooks = new Set([...translatingBooks].filter(id => id !== bookId));
 		}
@@ -50,9 +59,7 @@
 	async function triggerTranslateAll() {
 		translatingAll = true;
 		try {
-			await Promise.all(books.map(book => fetch(`/api/books/${book.id}/translate`, { method: 'POST' })));
-		} catch (e) {
-			console.error('Error triggering translations:', e);
+			await Promise.all(books.map(book => triggerTranslate(book.id)));
 		} finally {
 			translatingAll = false;
 		}
@@ -81,6 +88,17 @@
 			{translatingAll ? 'Translating...' : 'Translate All'}
 		</button>
 	</header>
+
+	{#if translateErrors.length > 0}
+		<div class="translate-errors">
+			{#each translateErrors as err, i}
+				<div class="translate-error">
+					<span>Translation failed for <strong>{err.bookId}</strong>: {err.message}</span>
+					<button class="dismiss-btn" onclick={() => dismissTranslateError(i)}>&times;</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="loading">Loading...</div>

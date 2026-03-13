@@ -40,6 +40,37 @@ header {
 	gap: 0.5rem;
 }
 
+/* Translation error banners */
+.translate-errors {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.translate-error {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.75rem 1rem;
+	background: #fef2f2;
+	border: 1px solid #fca5a5;
+	border-radius: 6px;
+	color: #991b1b;
+	font-size: 0.9rem;
+}
+
+.dismiss-btn {
+	background: none;
+	border: none;
+	color: #991b1b;
+	font-size: 1.25rem;
+	cursor: pointer;
+	padding: 0 0.25rem;
+	line-height: 1;
+}
+
 /* Build Log Page Specific */
 .log-container {
 	flex: 1;
