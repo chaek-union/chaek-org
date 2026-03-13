@@ -1,12 +1,24 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import type { NavItem } from '$lib/server/summary-parser';
-	import { t } from '$lib/i18n';
-	import { goto } from '$app/navigation';
+	import { t, locale } from '$lib/i18n';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import ChatBot from '$lib/components/ChatBot.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// Reload page data when locale changes so translated content is fetched
+	let initialLocale: string | null = null;
+	$effect(() => {
+		const current = $locale;
+		if (initialLocale === null) {
+			initialLocale = current;
+		} else if (current !== initialLocale) {
+			initialLocale = current;
+			invalidateAll();
+		}
+	});
 
 	let searchQuery = $state('');
 	let searchResults = $state<Array<{ path: string; title: string; chapter: string; score: number }>>([]);

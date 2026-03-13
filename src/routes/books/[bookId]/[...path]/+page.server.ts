@@ -2,7 +2,7 @@ import { error } from "@sveltejs/kit";
 import { getBookMetadata } from "$lib/server/books";
 import { parseSummary, getBookRoot } from "$lib/server/summary-parser";
 import { processMarkdown } from "$lib/server/markdown-processor";
-import { translatePage, detectBookLanguage } from "$lib/server/translate";
+import { translatePage, translateNavigation, translateText } from "$lib/server/translate";
 import type { PageServerLoad } from "./$types";
 import fs from "fs/promises";
 import path from "path";
@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     }
 
     // Parse SUMMARY.md to get navigation
-    const navigation = await parseSummary(params.bookId);
+    let navigation = await parseSummary(params.bookId);
 
     // Get book root directory
     const bookRoot = await getBookRoot(params.bookId);
@@ -41,10 +41,16 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         markdown = await processMarkdown(params.bookId, markdown);
 
         // Translate if user's locale differs from book language
-        const userLocale = cookies.get('locale');
+        const userLocale = cookies.get('locale') as 'ko' | 'en' | undefined;
         if (userLocale === 'ko' || userLocale === 'en') {
-            const translated = await translatePage(params.bookId, pagePath, markdown, userLocale);
+            const [translated, translatedNav, translatedTitle] = await Promise.all([
+                translatePage(params.bookId, pagePath, markdown, userLocale),
+                translateNavigation(params.bookId, navigation, userLocale),
+                translateText(params.bookId, book.name, userLocale, 'title')
+            ]);
             markdown = translated.markdown;
+            navigation = translatedNav;
+            book.name = translatedTitle;
         }
 
         // Compile markdown to HTML using mdsvex

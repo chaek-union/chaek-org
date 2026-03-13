@@ -70,8 +70,37 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 }
 
 /**
- * Translate markdown content using DeepL API.
- * Preserves code blocks by replacing them with placeholders before translation.
+ * Translate a single text string if the book language differs from the target locale.
+ * Cached per bookId/targetLocale/cacheKey.
+ */
+export async function translateText(
+	bookId: string,
+	text: string,
+	targetLocale: 'ko' | 'en',
+	cacheKey: string
+): Promise<string> {
+	const bookLang = await detectBookLanguage(bookId);
+	if (bookLang === targetLocale) return text;
+
+	const cachePath = path.join(CACHE_DIR, bookId, targetLocale, `_${cacheKey}.txt`);
+	try {
+		return await fs.readFile(cachePath, 'utf-8');
+	} catch {
+		// Cache miss
+	}
+
+	const translated = await callDeepL(text, bookLang, targetLocale);
+	try {
+		await fs.mkdir(path.dirname(cachePath), { recursive: true });
+		await fs.writeFile(cachePath, translated, 'utf-8');
+	} catch {
+		// Non-critical
+	}
+	return translated;
+}
+
+/**
+ * Translate text using DeepL API.
  */
 async function callDeepL(text: string, sourceLang: string, targetLang: string): Promise<string> {
 	const authKey = env.DEEPL_AUTHKEY;
@@ -216,6 +245,75 @@ export async function translatePage(
 	}
 
 	return { markdown: translated, translated: true };
+}
+
+/**
+ * Translate navigation titles for the sidebar.
+ * Batch-translates all titles in a single DeepL call and caches the result.
+ */
+export async function translateNavigation(
+	bookId: string,
+	navigation: Array<{ title: string; path?: string; children?: any[]; isHeader?: boolean }>,
+	targetLocale: 'ko' | 'en'
+): Promise<typeof navigation> {
+	const bookLang = await detectBookLanguage(bookId);
+	if (bookLang === targetLocale) return navigation;
+
+	// Check cache
+	const cachePath = path.join(CACHE_DIR, bookId, targetLocale, '_nav.json');
+	try {
+		const cached = await fs.readFile(cachePath, 'utf-8');
+		return JSON.parse(cached);
+	} catch {
+		// Cache miss
+	}
+
+	// Collect all titles to translate
+	const titles: string[] = [];
+	function collectTitles(items: typeof navigation) {
+		for (const item of items) {
+			if (item.title && item.title !== '__INTRODUCTION__') {
+				titles.push(item.title);
+			}
+			if (item.children) collectTitles(item.children);
+		}
+	}
+	collectTitles(navigation);
+
+	if (titles.length === 0) return navigation;
+
+	// Batch translate using a joined string with separators
+	const separator = '\n||||\n';
+	const joined = titles.join(separator);
+	const translatedJoined = await callDeepL(joined, bookLang, targetLocale);
+	const translatedTitles = translatedJoined.split(/\n?\|{4}\n?/);
+
+	// Apply translated titles back
+	let idx = 0;
+	function applyTitles(items: typeof navigation): typeof navigation {
+		return items.map((item) => {
+			const newItem = { ...item };
+			if (item.title && item.title !== '__INTRODUCTION__' && idx < translatedTitles.length) {
+				newItem.title = translatedTitles[idx].trim();
+				idx++;
+			}
+			if (item.children) {
+				newItem.children = applyTitles(item.children);
+			}
+			return newItem;
+		});
+	}
+	const translated = applyTitles(navigation);
+
+	// Cache
+	try {
+		await fs.mkdir(path.dirname(cachePath), { recursive: true });
+		await fs.writeFile(cachePath, JSON.stringify(translated), 'utf-8');
+	} catch {
+		// Non-critical
+	}
+
+	return translated;
 }
 
 /**

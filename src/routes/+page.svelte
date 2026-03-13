@@ -1,9 +1,22 @@
 <script lang="ts">
 	import type { PageData } from './$types';
-	import { t } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
 	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import BookCard from '$lib/components/BookCard.svelte';
+
+	// Reload page data when locale changes to get translated book titles
+	let initialLocale: string | null = null;
+	$effect(() => {
+		const current = $locale;
+		if (initialLocale === null) {
+			initialLocale = current;
+		} else if (current !== initialLocale) {
+			initialLocale = current;
+			invalidateAll();
+		}
+	});
 
 	onMount(() => {
 		const script = document.createElement('script');
