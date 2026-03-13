@@ -339,6 +339,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		console.log(`[translate] Pre-translation complete: ${bookId} → ${targetLocale}`);
 	} catch (err) {
 		console.error(`[translate] Pre-translation failed for ${bookId}:`, err);
+		throw err;
 	} finally {
 		preTranslateInProgress.delete(key);
 	}

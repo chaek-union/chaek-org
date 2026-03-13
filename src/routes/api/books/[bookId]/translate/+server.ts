@@ -6,6 +6,7 @@ import { preTranslateBook } from '$lib/server/translate';
 /**
  * POST /api/books/:bookId/translate
  * Manually trigger pre-translation for a book. Admin (chaek-union member) only.
+ * Waits for translation to complete and returns the result.
  * Body (optional): { "locale": "ko" | "en" }
  * If no locale specified, translates to both ko and en.
  */
@@ -31,12 +32,18 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		// No body or invalid JSON — translate both
 	}
 
-	if (targetLocale) {
-		preTranslateBook(bookId, targetLocale).catch(console.error);
-	} else {
-		preTranslateBook(bookId, 'ko').catch(console.error);
-		preTranslateBook(bookId, 'en').catch(console.error);
+	try {
+		if (targetLocale) {
+			await preTranslateBook(bookId, targetLocale);
+		} else {
+			await Promise.all([
+				preTranslateBook(bookId, 'ko'),
+				preTranslateBook(bookId, 'en')
+			]);
+		}
+		return json({ status: 'completed', bookId, locale: targetLocale || 'both' });
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return json({ status: 'failed', bookId, error: message }, { status: 500 });
 	}
-
-	return json({ status: 'started', bookId, locale: targetLocale || 'both' });
 };
