@@ -72,8 +72,8 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 }
 
 /**
- * Translate a single text string if the book language differs from the target locale.
- * Cached per bookId/targetLocale/cacheKey.
+ * Get translated text from cache. Never calls DeepL — cache-only.
+ * Returns original text on cache miss and triggers background pre-translation.
  */
 export async function translateText(
 	bookId: string,
@@ -88,17 +88,10 @@ export async function translateText(
 	try {
 		return await fs.readFile(cachePath, 'utf-8');
 	} catch {
-		// Cache miss
+		// Not cached yet — trigger background pre-translation
+		triggerPreTranslation(bookId, targetLocale);
+		return text;
 	}
-
-	const translated = await callDeepL(text, bookLang, targetLocale);
-	try {
-		await fs.mkdir(path.dirname(cachePath), { recursive: true });
-		await fs.writeFile(cachePath, translated, 'utf-8');
-	} catch {
-		// Non-critical
-	}
-	return translated;
 }
 
 // ── DeepL API ──────────────────────────────────────────────────────────────
