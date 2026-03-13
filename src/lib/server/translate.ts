@@ -6,21 +6,15 @@ import { processMarkdown } from './markdown-processor';
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
-// In-memory cache for detected book languages
 const bookLanguageCache = new Map<string, 'ko' | 'en'>();
-
-// Track in-progress pre-translations to avoid duplicate work
 const preTranslateInProgress = new Set<string>();
 
-/**
- * Detect the majority language of a book by sampling its markdown content.
- * Uses Hangul character ratio to determine ko vs en.
- */
+// ── Language detection ─────────────────────────────────────────────────────
+
 export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 	const cached = bookLanguageCache.get(bookId);
 	if (cached) return cached;
 
-	// Also check file-based cache
 	const langCachePath = path.join(CACHE_DIR, bookId, '.language');
 	try {
 		const lang = (await fs.readFile(langCachePath, 'utf-8')).trim();
@@ -28,15 +22,12 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 			bookLanguageCache.set(bookId, lang);
 			return lang;
 		}
-	} catch {
-		// No cache file
-	}
+	} catch { /* no cache */ }
 
 	const bookRoot = await getBookRoot(bookId);
 	const navigation = await parseSummary(bookId);
 	const filePaths = getFilePaths(navigation);
 
-	// Sample up to 5 files
 	const samplesToRead = filePaths.slice(0, 5);
 	let totalChars = 0;
 	let hangulChars = 0;
@@ -49,12 +40,9 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 				.replace(/`[^`]+`/g, '')
 				.replace(/https?:\/\/\S+/g, '')
 				.replace(/[^a-zA-Z\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g, '');
-
 			totalChars += stripped.length;
 			hangulChars += (stripped.match(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g) || []).length;
-		} catch {
-			// Skip unreadable files
-		}
+		} catch { /* skip */ }
 	}
 
 	const lang: 'ko' | 'en' = totalChars > 0 && hangulChars / totalChars > 0.3 ? 'ko' : 'en';
@@ -64,54 +52,19 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 		const dir = path.join(CACHE_DIR, bookId);
 		await fs.mkdir(dir, { recursive: true });
 		await fs.writeFile(langCachePath, lang, 'utf-8');
-	} catch {
-		// Non-critical
-	}
+	} catch { /* non-critical */ }
 
 	return lang;
 }
 
-/**
- * Get translated text from cache. Never calls DeepL — cache-only.
- * Returns original text on cache miss and triggers background pre-translation.
- */
-export async function translateText(
-	bookId: string,
-	text: string,
-	targetLocale: 'ko' | 'en',
-	cacheKey: string
-): Promise<string> {
-	const bookLang = await detectBookLanguage(bookId);
-	if (bookLang === targetLocale) return text;
-
-	const cachePath = path.join(CACHE_DIR, bookId, targetLocale, `_${cacheKey}.txt`);
-	try {
-		return await fs.readFile(cachePath, 'utf-8');
-	} catch {
-		// Not cached yet — trigger background pre-translation
-		triggerPreTranslation(bookId, targetLocale);
-		return text;
-	}
-}
-
 // ── DeepL API ──────────────────────────────────────────────────────────────
 
-async function callDeepL(
-	text: string,
-	sourceLang: string,
-	targetLang: string,
-	useXml = false
-): Promise<string> {
+async function callDeepL(text: string, sourceLang: string, targetLang: string, useXml = false): Promise<string> {
 	const results = await callDeepLBatch([text], sourceLang, targetLang, useXml);
 	return results[0];
 }
 
-async function callDeepLBatch(
-	texts: string[],
-	sourceLang: string,
-	targetLang: string,
-	useXml = false
-): Promise<string[]> {
+async function callDeepLBatch(texts: string[], sourceLang: string, targetLang: string, useXml = false): Promise<string[]> {
 	const authKey = env.DEEPL_AUTHKEY;
 	if (!authKey) {
 		console.warn('[translate] DEEPL_AUTHKEY not set, skipping translation');
@@ -123,9 +76,7 @@ async function callDeepLBatch(
 		: 'https://api.deepl.com/v2/translate';
 
 	const params = new URLSearchParams();
-	for (const t of texts) {
-		params.append('text', t);
-	}
+	for (const t of texts) params.append('text', t);
 	params.append('source_lang', sourceLang.toUpperCase());
 	params.append('target_lang', targetLang.toUpperCase());
 	if (useXml) {
@@ -168,25 +119,16 @@ function protectMarkdown(markdown: string): { text: string; restore: (translated
 	}
 
 	let result = markdown;
-
-	// Fenced code blocks
 	result = result.replace(/(```[\s\S]*?```)/g, (_, block) => protect(block));
-	// Inline code
 	result = result.replace(/(`[^`\n]+`)/g, (_, code) => protect(code));
-	// Images
 	result = result.replace(/(!\[[^\]]*\]\([^)]+\))/g, (_, img) => protect(img));
-	// Link URLs (keep link text translatable)
-	result = result.replace(/(\]\()([^)]+)(\))/g, (_, open, url, close) => {
-		return `${open}${protect(url)}${close}`;
-	});
-	// Block-level HTML
+	result = result.replace(/(\]\()([^)]+)(\))/g, (_, open, url, close) => `${open}${protect(url)}${close}`);
 	result = result.replace(/(<[a-zA-Z][^>]*>[\s\S]*?<\/[a-zA-Z]+>)/g, (match) => {
 		if (match.includes('\n') || /^<(div|table|thead|tbody|tr|td|th|details|summary|pre|iframe|script|style)/i.test(match)) {
 			return protect(match);
 		}
 		return match;
 	});
-	// Void HTML tags
 	result = result.replace(/(<(?:br|hr|img)[^>]*\/?>)/gi, (_, tag) => protect(tag));
 
 	function restore(translated: string): string {
@@ -213,17 +155,11 @@ function chunkMarkdown(text: string, maxChunk: number): string[] {
 		}
 	}
 	if (current) chunks.push(current);
-
 	return chunks;
 }
 
-async function translateMarkdownContent(
-	markdown: string,
-	sourceLang: string,
-	targetLang: string
-): Promise<string> {
+async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string): Promise<string> {
 	const { text: xmlText, restore } = protectMarkdown(markdown);
-
 	const chunks = chunkMarkdown(xmlText, 30000);
 
 	const BATCH_SIZE = 10;
@@ -237,8 +173,7 @@ async function translateMarkdownContent(
 		}
 	}
 
-	const joined = translatedChunks.join('\n\n');
-	return restore(joined);
+	return restore(translatedChunks.join('\n\n'));
 }
 
 // ── Cache helpers ──────────────────────────────────────────────────────────
@@ -248,17 +183,13 @@ function getTranslationCachePath(bookId: string, targetLang: string, pagePath: s
 }
 
 function pageCacheExists(bookId: string, targetLang: string, pagePath: string): Promise<boolean> {
-	return fs.access(getTranslationCachePath(bookId, targetLang, pagePath))
-		.then(() => true)
-		.catch(() => false);
+	return fs.access(getTranslationCachePath(bookId, targetLang, pagePath)).then(() => true).catch(() => false);
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+// ── Public API (cache-only reads, no DeepL on page visit) ──────────────────
 
 /**
- * Get translated page content from cache, or return original if not cached.
- * Never calls DeepL — only reads from disk cache.
- * Use preTranslateBook() to populate the cache.
+ * Read translated page from cache. Returns original if not cached.
  */
 export async function translatePage(
 	bookId: string,
@@ -267,24 +198,18 @@ export async function translatePage(
 	targetLocale: 'ko' | 'en'
 ): Promise<{ markdown: string; translated: boolean }> {
 	const bookLang = await detectBookLanguage(bookId);
-	if (bookLang === targetLocale) {
-		return { markdown, translated: false };
-	}
+	if (bookLang === targetLocale) return { markdown, translated: false };
 
-	// Read from disk cache only
-	const cachePath = getTranslationCachePath(bookId, targetLocale, pagePath);
 	try {
-		const cached = await fs.readFile(cachePath, 'utf-8');
+		const cached = await fs.readFile(getTranslationCachePath(bookId, targetLocale, pagePath), 'utf-8');
 		return { markdown: cached, translated: true };
 	} catch {
-		// Not cached yet — trigger background pre-translation
-		triggerPreTranslation(bookId, targetLocale);
 		return { markdown, translated: false };
 	}
 }
 
 /**
- * Get translated navigation from cache, or return original.
+ * Read translated navigation from cache. Returns original if not cached.
  */
 export async function translateNavigation(
 	bookId: string,
@@ -294,19 +219,37 @@ export async function translateNavigation(
 	const bookLang = await detectBookLanguage(bookId);
 	if (bookLang === targetLocale) return navigation;
 
-	const cachePath = path.join(CACHE_DIR, bookId, targetLocale, '_nav.json');
 	try {
-		const cached = await fs.readFile(cachePath, 'utf-8');
-		return JSON.parse(cached);
+		return JSON.parse(await fs.readFile(path.join(CACHE_DIR, bookId, targetLocale, '_nav.json'), 'utf-8'));
 	} catch {
-		// Not cached yet
 		return navigation;
 	}
 }
 
 /**
+ * Read translated text from cache. Returns original if not cached.
+ */
+export async function translateText(
+	bookId: string,
+	text: string,
+	targetLocale: 'ko' | 'en',
+	cacheKey: string
+): Promise<string> {
+	const bookLang = await detectBookLanguage(bookId);
+	if (bookLang === targetLocale) return text;
+
+	try {
+		return await fs.readFile(path.join(CACHE_DIR, bookId, targetLocale, `_${cacheKey}.txt`), 'utf-8');
+	} catch {
+		return text;
+	}
+}
+
+// ── Pre-translation (called during build or manual trigger only) ───────────
+
+/**
  * Pre-translate an entire book: all pages, navigation titles, and book title.
- * Skips pages that are already cached. This is the only function that calls DeepL.
+ * Skips pages that are already cached.
  */
 export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'): Promise<void> {
 	const bookLang = await detectBookLanguage(bookId);
@@ -323,7 +266,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		const navigation = await parseSummary(bookId);
 		const filePaths = getFilePaths(navigation);
 
-		// 1. Translate navigation titles (if not cached)
+		// 1. Navigation titles
 		const navCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_nav.json');
 		try {
 			await fs.access(navCachePath);
@@ -357,12 +300,11 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 			}
 		}
 
-		// 2. Translate book title (if not cached)
+		// 2. Book title
 		const titleCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_title.txt');
 		try {
 			await fs.access(titleCachePath);
 		} catch {
-			// Read title from book.json
 			try {
 				const bookJsonPath = path.join(process.cwd(), 'books', bookId, 'book.json');
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
@@ -371,12 +313,10 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
 				}
-			} catch {
-				// No book.json or no title
-			}
+			} catch { /* no book.json or no title */ }
 		}
 
-		// 3. Translate all pages (skip already cached)
+		// 3. All pages
 		for (const filePath of filePaths) {
 			if (await pageCacheExists(bookId, targetLocale, filePath)) continue;
 
@@ -405,17 +345,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 }
 
 /**
- * Trigger background pre-translation (fire-and-forget).
- */
-function triggerPreTranslation(bookId: string, targetLocale: 'ko' | 'en'): void {
-	preTranslateBook(bookId, targetLocale).catch((err) => {
-		console.error(`[translate] Background pre-translation error:`, err);
-	});
-}
-
-/**
- * Invalidate translation cache for a book (e.g., after a new build).
- * Then triggers pre-translation for both locales in the background.
+ * Invalidate translation cache for a book, then re-translate in background.
  */
 export async function invalidateBookTranslations(bookId: string): Promise<void> {
 	const bookCacheDir = path.join(CACHE_DIR, bookId);
@@ -423,11 +353,9 @@ export async function invalidateBookTranslations(bookId: string): Promise<void> 
 		bookLanguageCache.delete(bookId);
 		await fs.rm(bookCacheDir, { recursive: true, force: true });
 		console.log(`[translate] Invalidated translation cache for ${bookId}`);
-	} catch {
-		// Non-critical
-	}
+	} catch { /* non-critical */ }
 
 	// Re-translate in background for both locales
-	triggerPreTranslation(bookId, 'ko');
-	triggerPreTranslation(bookId, 'en');
+	preTranslateBook(bookId, 'ko').catch(console.error);
+	preTranslateBook(bookId, 'en').catch(console.error);
 }
