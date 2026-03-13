@@ -100,8 +100,9 @@ export async function translateText(
 }
 
 /**
- * Translate text using DeepL API with XML tag handling.
- * Content wrapped in <x> tags is preserved untranslated.
+ * Translate one or more texts using DeepL API with XML tag handling.
+ * DeepL supports multiple `text` params in a single request, returning
+ * translations in the same order. Content wrapped in <x> tags is preserved.
  */
 async function callDeepL(
 	text: string,
@@ -109,10 +110,20 @@ async function callDeepL(
 	targetLang: string,
 	useXml = false
 ): Promise<string> {
+	const results = await callDeepLBatch([text], sourceLang, targetLang, useXml);
+	return results[0];
+}
+
+async function callDeepLBatch(
+	texts: string[],
+	sourceLang: string,
+	targetLang: string,
+	useXml = false
+): Promise<string[]> {
 	const authKey = env.DEEPL_AUTHKEY;
 	if (!authKey) {
 		console.warn('[translate] DEEPL_AUTHKEY not set, skipping translation');
-		return text;
+		return texts;
 	}
 
 	const baseUrl = authKey.endsWith(':fx')
@@ -120,7 +131,9 @@ async function callDeepL(
 		: 'https://api.deepl.com/v2/translate';
 
 	const params = new URLSearchParams();
-	params.append('text', text);
+	for (const t of texts) {
+		params.append('text', t);
+	}
 	params.append('source_lang', sourceLang.toUpperCase());
 	params.append('target_lang', targetLang.toUpperCase());
 	if (useXml) {
@@ -140,11 +153,11 @@ async function callDeepL(
 	if (!response.ok) {
 		const errorText = await response.text();
 		console.error(`[translate] DeepL API error ${response.status}: ${errorText}`);
-		return text;
+		return texts;
 	}
 
 	const data = await response.json();
-	return data.translations[0].text;
+	return data.translations.map((t: { text: string }) => t.text);
 }
 
 /**
@@ -240,7 +253,7 @@ function chunkMarkdown(text: string, maxChunk: number): string[] {
  * images, link URLs, and HTML blocks.
  *
  * Uses DeepL XML tag handling to protect non-translatable content,
- * paragraph-level chunking, and sequential requests to avoid truncation.
+ * paragraph-level chunking, and batched API calls for speed.
  */
 async function translateMarkdownContent(
 	markdown: string,
@@ -249,15 +262,20 @@ async function translateMarkdownContent(
 ): Promise<string> {
 	const { text: xmlText, restore } = protectMarkdown(markdown);
 
-	// Split into manageable chunks at paragraph boundaries
-	// 4000 chars keeps well under DeepL's limits even after URL-encoding
-	const chunks = chunkMarkdown(xmlText, 4000);
+	// 30KB chunks — well within DeepL's 128KB limit even after URL-encoding
+	const chunks = chunkMarkdown(xmlText, 30000);
 
-	// Translate sequentially to avoid rate limits and preserve order
-	const translatedChunks: string[] = [];
-	for (const chunk of chunks) {
-		const translated = await callDeepL(chunk, sourceLang, targetLang, true);
-		translatedChunks.push(translated);
+	// Batch chunks into groups to limit request size while maximizing parallelism.
+	// Each batch sends multiple texts in one DeepL API call.
+	const BATCH_SIZE = 10;
+	const translatedChunks: string[] = new Array(chunks.length);
+
+	for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+		const batch = chunks.slice(i, i + BATCH_SIZE);
+		const results = await callDeepLBatch(batch, sourceLang, targetLang, true);
+		for (let j = 0; j < results.length; j++) {
+			translatedChunks[i + j] = results[j];
+		}
 	}
 
 	const joined = translatedChunks.join('\n\n');
@@ -349,12 +367,8 @@ export async function translateNavigation(
 
 	if (titles.length === 0) return navigation;
 
-	// Translate each title individually for reliability
-	const translatedTitles: string[] = [];
-	for (const title of titles) {
-		const translated = await callDeepL(title, bookLang, targetLocale);
-		translatedTitles.push(translated);
-	}
+	// Translate all titles in a single batch API call
+	const translatedTitles = await callDeepLBatch(titles, bookLang, targetLocale);
 
 	// Apply translated titles back
 	let idx = 0;
