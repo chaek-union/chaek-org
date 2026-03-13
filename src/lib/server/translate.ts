@@ -3,6 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getBookRoot, parseSummary, getFilePaths } from './summary-parser';
 import { processMarkdown } from './markdown-processor';
+import { createTranslationLog, updateTranslationLog } from './db/translation-logs';
+import { translationEvents } from './translation-events';
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
@@ -281,27 +283,38 @@ export async function translateText(
 
 /**
  * Pre-translate an entire book: all pages, navigation titles, and book title.
- * Skips pages that are already cached.
+ * Skips pages that are already cached. Logs progress to build_logs via SSE.
+ * Returns the build log ID.
  */
-export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'): Promise<void> {
+export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en', triggeredBy?: string): Promise<number | null> {
 	const bookLang = await detectBookLanguage(bookId);
-	if (bookLang === targetLocale) return;
+	if (bookLang === targetLocale) return null;
 
 	const key = `${bookId}:${targetLocale}`;
-	if (preTranslateInProgress.has(key)) return;
+	if (preTranslateInProgress.has(key)) return null;
 	preTranslateInProgress.add(key);
 
+	const translationLog = await createTranslationLog(bookId, targetLocale, triggeredBy);
+	const logId = translationLog.id;
+
+	const log = (msg: string) => translationEvents.emitLog(logId, 'stdout', msg);
+	const logErr = (msg: string) => translationEvents.emitLog(logId, 'stderr', msg);
+
 	try {
-		console.log(`[translate] Pre-translating book ${bookId} → ${targetLocale}`);
+		await log(`Pre-translating ${bookId}: ${bookLang} → ${targetLocale}`);
+		await translationEvents.emitStatus(logId, 'running');
 
 		const bookRoot = await getBookRoot(bookId);
 		const navigation = await parseSummary(bookId);
 		const filePaths = getFilePaths(navigation);
 
+		await log(`Found ${filePaths.length} pages to translate`);
+
 		// 1. Navigation titles
 		const navCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_nav.json');
 		try {
 			await fs.access(navCachePath);
+			await log('Navigation titles: cached, skipping');
 		} catch {
 			const titles: string[] = [];
 			function collectTitles(items: typeof navigation) {
@@ -313,6 +326,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 			collectTitles(navigation);
 
 			if (titles.length > 0) {
+				await log(`Translating ${titles.length} navigation titles...`);
 				const translatedTitles = await translateBatch(titles, bookLang, targetLocale);
 				let idx = 0;
 				function applyTitles(items: typeof navigation): typeof navigation {
@@ -329,6 +343,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				const translatedNav = applyTitles(navigation);
 				await fs.mkdir(path.dirname(navCachePath), { recursive: true });
 				await fs.writeFile(navCachePath, JSON.stringify(translatedNav), 'utf-8');
+				await log('Navigation titles: done');
 			}
 		}
 
@@ -336,14 +351,17 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		const titleCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_title.txt');
 		try {
 			await fs.access(titleCachePath);
+			await log('Book title: cached, skipping');
 		} catch {
 			try {
 				const bookJsonPath = path.join(process.cwd(), 'books', bookId, 'book.json');
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
 				if (bookJson.title) {
+					await log(`Translating book title: "${bookJson.title}"`);
 					const translated = await translateSingle(bookJson.title, bookLang, targetLocale);
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
+					await log(`Book title: "${translated}"`);
 				}
 			} catch { /* no book.json or no title */ }
 		}
@@ -352,12 +370,17 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		const MAX_RETRIES = 3;
 		let pending = [...filePaths];
 		const finalFailed: string[] = [];
+		let completedCount = 0;
+		let skippedCount = 0;
 
 		for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 			const failedThisRound: string[] = [];
 
 			for (const filePath of pending) {
-				if (await pageCacheExists(bookId, targetLocale, filePath)) continue;
+				if (await pageCacheExists(bookId, targetLocale, filePath)) {
+					skippedCount++;
+					continue;
+				}
 
 				try {
 					const fullPath = path.join(bookRoot, filePath);
@@ -369,9 +392,11 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 					await fs.mkdir(path.dirname(cachePath), { recursive: true });
 					await fs.writeFile(cachePath, translated, 'utf-8');
 
-					console.log(`[translate] Cached ${bookId}/${filePath} → ${targetLocale}`);
+					completedCount++;
+					await log(`[${completedCount + skippedCount}/${filePaths.length}] ${filePath}`);
 				} catch (err) {
-					console.error(`[translate] Attempt ${attempt}/${MAX_RETRIES} failed for ${bookId}/${filePath}:`, err);
+					const msg = err instanceof Error ? err.message : String(err);
+					await logErr(`Attempt ${attempt}/${MAX_RETRIES} failed: ${filePath} — ${msg}`);
 					failedThisRound.push(filePath);
 				}
 			}
@@ -380,7 +405,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 
 			if (attempt < MAX_RETRIES) {
 				const retryDelay = attempt * 2000;
-				console.log(`[translate] Retrying ${failedThisRound.length} failed pages in ${retryDelay}ms...`);
+				await log(`Retrying ${failedThisRound.length} failed pages in ${retryDelay / 1000}s...`);
 				await new Promise(r => setTimeout(r, retryDelay));
 				pending = failedThisRound;
 			} else {
@@ -389,13 +414,21 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		}
 
 		if (finalFailed.length > 0) {
-			console.error(`[translate] ${finalFailed.length} pages failed after ${MAX_RETRIES} attempts for ${bookId} → ${targetLocale}: ${finalFailed.join(', ')}`);
-			throw new Error(`Translation incomplete: ${finalFailed.length} pages failed after ${MAX_RETRIES} retries (${finalFailed.join(', ')})`);
+			await logErr(`${finalFailed.length} pages failed after ${MAX_RETRIES} retries: ${finalFailed.join(', ')}`);
+			await updateTranslationLog(logId, 'failed');
+			await translationEvents.emitStatus(logId, 'failed');
+			throw new Error(`Translation incomplete: ${finalFailed.length} pages failed`);
 		}
 
-		console.log(`[translate] Pre-translation complete: ${bookId} → ${targetLocale}`);
+		await log(`Translation complete: ${completedCount} translated, ${skippedCount} cached`);
+		await updateTranslationLog(logId, 'success');
+		await translationEvents.emitStatus(logId, 'success');
+		return logId;
 	} catch (err) {
-		console.error(`[translate] Pre-translation failed for ${bookId}:`, err);
+		const msg = err instanceof Error ? err.message : String(err);
+		await logErr(`Translation failed: ${msg}`);
+		try { await updateTranslationLog(logId, 'failed'); } catch { /* ignore */ }
+		try { await translationEvents.emitStatus(logId, 'failed'); } catch { /* ignore */ }
 		throw err;
 	} finally {
 		preTranslateInProgress.delete(key);

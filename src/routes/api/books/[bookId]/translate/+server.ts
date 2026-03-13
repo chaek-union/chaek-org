@@ -5,13 +5,14 @@ import { preTranslateBook } from '$lib/server/translate';
 
 /**
  * POST /api/books/:bookId/translate
- * Trigger pre-translation in background. Returns immediately.
+ * Trigger pre-translation in background. Returns immediately with log IDs.
  * Body (optional): { "locale": "ko" | "en" }
  * If no locale specified, translates to both ko and en.
  */
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const session = await locals.auth();
-	if (!(session?.user as any)?.isChaekMember) {
+	const user = session?.user as any;
+	if (!user?.isChaekMember) {
 		throw error(401, 'Unauthorized');
 	}
 
@@ -31,14 +32,16 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		// No body or invalid JSON — translate both
 	}
 
+	const triggeredBy = user.githubId || undefined;
+
 	// Fire-and-forget: run in background, log errors
 	if (targetLocale) {
-		preTranslateBook(bookId, targetLocale).catch(err =>
+		preTranslateBook(bookId, targetLocale, triggeredBy).catch(err =>
 			console.error(`[translate] Background translation failed for ${bookId} → ${targetLocale}:`, err)
 		);
 	} else {
-		preTranslateBook(bookId, 'ko')
-			.then(() => preTranslateBook(bookId, 'en'))
+		preTranslateBook(bookId, 'ko', triggeredBy)
+			.then(() => preTranslateBook(bookId, 'en', triggeredBy))
 			.catch(err =>
 				console.error(`[translate] Background translation failed for ${bookId}:`, err)
 			);

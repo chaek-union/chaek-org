@@ -12,6 +12,7 @@
 	let translatingBooks = $state<Set<string>>(new Set());
 	let translatingAll = $state(false);
 	let translateErrors = $state<Array<{ bookId: string; message: string }>>([]);
+	let translationLogs = $state<any[]>([]);
 
 	const pageTitle = $derived(`${$t('builds.title')} - ${$t('app.title')}`);
 
@@ -37,6 +38,17 @@
 		}
 	}
 
+	async function loadTranslationLogs() {
+		try {
+			const response = await fetch('/api/translations');
+			if (response.ok) {
+				translationLogs = await response.json();
+			}
+		} catch (e) {
+			console.error('Error loading translation logs:', e);
+		}
+	}
+
 	function dismissTranslateError(index: number) {
 		translateErrors = translateErrors.filter((_, i) => i !== index);
 	}
@@ -48,6 +60,9 @@
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
 				translateErrors = [...translateErrors, { bookId, message: body.error || `HTTP ${res.status}` }];
+			} else {
+				// Reload translation logs after triggering
+				setTimeout(() => loadTranslationLogs(), 500);
 			}
 		} catch (e) {
 			translateErrors = [...translateErrors, { bookId, message: String(e) }];
@@ -65,8 +80,22 @@
 		}
 	}
 
+	function formatDate(date: string) {
+		return new Date(date).toLocaleString($locale === 'ko' ? 'ko-KR' : 'en-US');
+	}
+
+	function formatDuration(started: string, completed: string | null) {
+		if (!completed) return '-';
+		const duration = new Date(completed).getTime() - new Date(started).getTime();
+		const seconds = Math.floor(duration / 1000);
+		const minutes = Math.floor(seconds / 60);
+		if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+		return `${seconds}s`;
+	}
+
 	onMount(() => {
 		loadBooks();
+		loadTranslationLogs();
 	});
 </script>
 
@@ -134,6 +163,42 @@
 								>
 									{translatingBooks.has(book.id) ? 'Translating...' : 'Translate'}
 								</button>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{/if}
+
+	{#if translationLogs.length > 0}
+		<h2 class="section-title">Translation Logs</h2>
+		<div class="table-container">
+			<table>
+				<thead>
+					<tr>
+						<th>Book</th>
+						<th>Locale</th>
+						<th>Status</th>
+						<th>Started</th>
+						<th>Duration</th>
+						<th></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each translationLogs as log}
+						<tr>
+							<td class="book-name">{log.book_id}</td>
+							<td>{log.target_locale}</td>
+							<td>
+								<span class="status status-{log.status}">{log.status}</span>
+							</td>
+							<td class="date">{formatDate(log.started_at)}</td>
+							<td class="duration">{formatDuration(log.started_at, log.completed_at)}</td>
+							<td>
+								<a href="/builds/translations/{log.id}" class="btn btn-primary">
+									View Log
+								</a>
 							</td>
 						</tr>
 					{/each}

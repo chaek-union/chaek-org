@@ -61,6 +61,35 @@ CREATE TABLE IF NOT EXISTS pdf_builds (
     CONSTRAINT valid_pdf_status CHECK (status IN ('running', 'success', 'failed'))
 );
 
+-- Translation logs table
+CREATE TABLE IF NOT EXISTS translation_logs (
+    id SERIAL PRIMARY KEY,
+    book_id VARCHAR(255) NOT NULL,
+    target_locale VARCHAR(10) NOT NULL,
+    status VARCHAR(50) NOT NULL, -- 'running', 'success', 'failed'
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    triggered_by VARCHAR(255) REFERENCES users(github_id),
+    CONSTRAINT valid_translation_status CHECK (status IN ('running', 'success', 'failed'))
+);
+
+-- Translation log lines table
+CREATE TABLE IF NOT EXISTS translation_log_lines (
+    id SERIAL PRIMARY KEY,
+    log_id INTEGER NOT NULL REFERENCES translation_logs(id) ON DELETE CASCADE,
+    line_number INTEGER NOT NULL,
+    log_type VARCHAR(10) NOT NULL, -- 'stdout', 'stderr', 'status'
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(log_id, line_number)
+);
+
+-- Index for faster queries
+CREATE INDEX IF NOT EXISTS idx_translation_logs_book_id ON translation_logs(book_id);
+CREATE INDEX IF NOT EXISTS idx_translation_logs_status ON translation_logs(status);
+CREATE INDEX IF NOT EXISTS idx_translation_logs_started_at ON translation_logs(started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_translation_log_lines_log_id ON translation_log_lines(log_id, line_number);
+
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS idx_build_logs_book_id ON build_logs(book_id);
 CREATE INDEX IF NOT EXISTS idx_build_logs_status ON build_logs(status);
