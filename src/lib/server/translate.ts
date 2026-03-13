@@ -100,9 +100,15 @@ export async function translateText(
 }
 
 /**
- * Translate text using DeepL API.
+ * Translate text using DeepL API with XML tag handling.
+ * Content wrapped in <x> tags is preserved untranslated.
  */
-async function callDeepL(text: string, sourceLang: string, targetLang: string): Promise<string> {
+async function callDeepL(
+	text: string,
+	sourceLang: string,
+	targetLang: string,
+	useXml = false
+): Promise<string> {
 	const authKey = env.DEEPL_AUTHKEY;
 	if (!authKey) {
 		console.warn('[translate] DEEPL_AUTHKEY not set, skipping translation');
@@ -117,6 +123,10 @@ async function callDeepL(text: string, sourceLang: string, targetLang: string): 
 	params.append('text', text);
 	params.append('source_lang', sourceLang.toUpperCase());
 	params.append('target_lang', targetLang.toUpperCase());
+	if (useXml) {
+		params.append('tag_handling', 'xml');
+		params.append('ignore_tags', 'x');
+	}
 
 	const response = await fetch(baseUrl, {
 		method: 'POST',
@@ -138,63 +148,120 @@ async function callDeepL(text: string, sourceLang: string, targetLang: string): 
 }
 
 /**
- * Translate markdown content while preserving code blocks, HTML tags, and links.
+ * Escape text for safe embedding inside XML.
+ */
+function xmlEscape(s: string): string {
+	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Wrap non-translatable content in <x> tags for DeepL XML mode.
+ * This protects code blocks, inline code, images, link URLs,
+ * and markdown structural syntax from being modified.
+ */
+function protectMarkdown(markdown: string): { text: string; restore: (translated: string) => string } {
+	const protected_: string[] = [];
+
+	function protect(content: string): string {
+		const idx = protected_.length;
+		protected_.push(content);
+		return `<x id="${idx}">${xmlEscape(content)}</x>`;
+	}
+
+	let result = markdown;
+
+	// 1. Fenced code blocks (```...```)
+	result = result.replace(/(```[\s\S]*?```)/g, (_, block) => protect(block));
+
+	// 2. Inline code (`...`)
+	result = result.replace(/(`[^`\n]+`)/g, (_, code) => protect(code));
+
+	// 3. Images: protect full syntax ![alt](url)
+	result = result.replace(/(!\[[^\]]*\]\([^)]+\))/g, (_, img) => protect(img));
+
+	// 4. Links: translate the text but protect the URL part
+	//    [text](url) → [text](<x>url</x>)
+	result = result.replace(/(\]\()([^)]+)(\))/g, (_, open, url, close) => {
+		return `${open}${protect(url)}${close}`;
+	});
+
+	// 5. HTML blocks (full tags like <div>, <p>, <details>, etc.)
+	result = result.replace(/(<[a-zA-Z][^>]*>[\s\S]*?<\/[a-zA-Z]+>)/g, (match) => {
+		// Only protect multi-line or block-level HTML
+		if (match.includes('\n') || /^<(div|table|thead|tbody|tr|td|th|details|summary|pre|iframe|script|style)/i.test(match)) {
+			return protect(match);
+		}
+		return match;
+	});
+
+	// 6. Standalone HTML tags (self-closing or void)
+	result = result.replace(/(<(?:br|hr|img)[^>]*\/?>)/gi, (_, tag) => protect(tag));
+
+	// 7. Header markers: protect the # prefix but let the text be translated
+	//    We don't protect headers entirely since their text should be translated
+
+	function restore(translated: string): string {
+		// Restore protected content from <x id="N">...</x> tags
+		return translated.replace(/<x id="(\d+)">[\s\S]*?<\/x>/g, (_, idStr) => {
+			const id = parseInt(idStr, 10);
+			return id < protected_.length ? protected_[id] : '';
+		});
+	}
+
+	return { text: result, restore };
+}
+
+/**
+ * Split markdown into paragraph-level chunks, respecting a max size.
+ * Splits on double newlines (paragraph boundaries) to avoid breaking
+ * mid-sentence or mid-structure.
+ */
+function chunkMarkdown(text: string, maxChunk: number): string[] {
+	const paragraphs = text.split(/\n\n/);
+	const chunks: string[] = [];
+	let current = '';
+
+	for (const para of paragraphs) {
+		const addition = current ? '\n\n' + para : para;
+		if (current.length + addition.length > maxChunk && current.length > 0) {
+			chunks.push(current);
+			current = para;
+		} else {
+			current = current ? current + '\n\n' + para : para;
+		}
+	}
+	if (current) chunks.push(current);
+
+	return chunks;
+}
+
+/**
+ * Translate markdown content while preserving code blocks, inline code,
+ * images, link URLs, and HTML blocks.
+ *
+ * Uses DeepL XML tag handling to protect non-translatable content,
+ * paragraph-level chunking, and sequential requests to avoid truncation.
  */
 async function translateMarkdownContent(
 	markdown: string,
 	sourceLang: string,
 	targetLang: string
 ): Promise<string> {
-	// Extract code blocks and replace with placeholders
-	const codeBlocks: string[] = [];
-	let processed = markdown.replace(/```[\s\S]*?```/g, (match) => {
-		const idx = codeBlocks.length;
-		codeBlocks.push(match);
-		return `\n{{CODE_BLOCK_${idx}}}\n`;
-	});
+	const { text: xmlText, restore } = protectMarkdown(markdown);
 
-	// Extract inline code
-	const inlineCode: string[] = [];
-	processed = processed.replace(/`[^`]+`/g, (match) => {
-		const idx = inlineCode.length;
-		inlineCode.push(match);
-		return `{{INLINE_CODE_${idx}}}`;
-	});
+	// Split into manageable chunks at paragraph boundaries
+	// 4000 chars keeps well under DeepL's limits even after URL-encoding
+	const chunks = chunkMarkdown(xmlText, 4000);
 
-	// Split into chunks if too large (DeepL limit ~128KB)
-	const MAX_CHUNK = 50000;
-	const lines = processed.split('\n');
-	const chunks: string[] = [];
-	let currentChunk = '';
-
-	for (const line of lines) {
-		if (currentChunk.length + line.length + 1 > MAX_CHUNK && currentChunk.length > 0) {
-			chunks.push(currentChunk);
-			currentChunk = line;
-		} else {
-			currentChunk += (currentChunk ? '\n' : '') + line;
-		}
-	}
-	if (currentChunk) chunks.push(currentChunk);
-
-	// Translate each chunk
-	const translatedChunks = await Promise.all(
-		chunks.map((chunk) => callDeepL(chunk, sourceLang, targetLang))
-	);
-
-	let result = translatedChunks.join('\n');
-
-	// Restore code blocks
-	for (let i = 0; i < codeBlocks.length; i++) {
-		result = result.replace(`{{CODE_BLOCK_${i}}}`, codeBlocks[i]);
+	// Translate sequentially to avoid rate limits and preserve order
+	const translatedChunks: string[] = [];
+	for (const chunk of chunks) {
+		const translated = await callDeepL(chunk, sourceLang, targetLang, true);
+		translatedChunks.push(translated);
 	}
 
-	// Restore inline code
-	for (let i = 0; i < inlineCode.length; i++) {
-		result = result.replace(`{{INLINE_CODE_${i}}}`, inlineCode[i]);
-	}
-
-	return result;
+	const joined = translatedChunks.join('\n\n');
+	return restore(joined);
 }
 
 /**
@@ -282,11 +349,12 @@ export async function translateNavigation(
 
 	if (titles.length === 0) return navigation;
 
-	// Batch translate using a joined string with separators
-	const separator = '\n||||\n';
-	const joined = titles.join(separator);
-	const translatedJoined = await callDeepL(joined, bookLang, targetLocale);
-	const translatedTitles = translatedJoined.split(/\n?\|{4}\n?/);
+	// Translate each title individually for reliability
+	const translatedTitles: string[] = [];
+	for (const title of titles) {
+		const translated = await callDeepL(title, bookLang, targetLocale);
+		translatedTitles.push(translated);
+	}
 
 	// Apply translated titles back
 	let idx = 0;
