@@ -46,7 +46,7 @@
 
 <Navbar {data} />
 
-<main>
+<main class="container">
 	<header>
 		<h1>{$t('builds.title')}</h1>
 	</header>
