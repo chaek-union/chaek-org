@@ -46,9 +46,10 @@ export const locale = writable<Locale>('ko');
 if (browser) {
 	locale.set(getInitialLocale());
 
-	// Save locale to localStorage when it changes
+	// Save locale to localStorage and cookie when it changes
 	locale.subscribe((value) => {
 		localStorage.setItem('locale', value);
+		document.cookie = `locale=${value};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
 	});
 }
 

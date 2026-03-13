@@ -33,9 +33,11 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - DEEPL_AUTHKEY=${DEEPL_AUTHKEY}
     volumes:
       - ./books:/app/books
       - ./static/books:/app/static/books
+      - ./data:/app/data
 
 volumes:
   postgres_data:

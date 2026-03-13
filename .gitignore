@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 # Books data
 /books/
 /static/books/
+
+# Translation cache
+/data/

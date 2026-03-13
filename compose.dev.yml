@@ -41,6 +41,7 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - DEEPL_AUTHKEY=${DEEPL_AUTHKEY}
 
 volumes:
   postgres_data_dev:

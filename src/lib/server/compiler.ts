@@ -12,6 +12,7 @@ import {
 } from "./summary-parser.js";
 import { buildEvents } from "./build-events.js";
 import { processMarkdown } from "./markdown-processor.js";
+import { invalidateBookTranslations } from "./translate.js";
 
 const BOOKS_DIR = path.join(process.cwd(), "books");
 const STATIC_BOOKS_DIR = path.join(process.cwd(), "static", "books");
@@ -630,6 +631,9 @@ export async function processBook(
 
         // Sync repository first
         await syncRepository(repoName, repoUrl);
+
+        // Invalidate translation cache since content changed
+        await invalidateBookTranslations(repoName);
 
         // Read book title from book.json
         const bookTitle = await getBookTitle(repoName);
