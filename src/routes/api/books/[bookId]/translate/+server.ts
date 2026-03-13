@@ -5,11 +5,16 @@ import { preTranslateBook } from '$lib/server/translate';
 
 /**
  * POST /api/books/:bookId/translate
- * Manually trigger pre-translation for a book.
+ * Manually trigger pre-translation for a book. Admin (chaek-union member) only.
  * Body (optional): { "locale": "ko" | "en" }
  * If no locale specified, translates to both ko and en.
  */
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ params, request, locals }) => {
+	const session = await locals.auth();
+	if (!(session?.user as any)?.isChaekMember) {
+		throw error(401, 'Unauthorized');
+	}
+
 	const { bookId } = params;
 
 	if (!await bookExists(bookId)) {
@@ -27,7 +32,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	}
 
 	if (targetLocale) {
-		// Fire and forget
 		preTranslateBook(bookId, targetLocale).catch(console.error);
 	} else {
 		preTranslateBook(bookId, 'ko').catch(console.error);

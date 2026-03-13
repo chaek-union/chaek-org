@@ -35,6 +35,11 @@ header {
 	font-family: monospace;
 }
 
+.actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
 /* Build Log Page Specific */
 .log-container {
 	flex: 1;
