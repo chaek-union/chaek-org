@@ -3,16 +3,15 @@
 	import { t, locale } from '$lib/i18n';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	let { data }: { data: PageData } = $props();
 
-	let activeTab = $state<'builds' | 'translations'>('builds');
+	let activeTab = $derived<'builds' | 'translations'>($page.url.searchParams.get('tab') === 'translations' ? 'translations' : 'builds');
 	let books = $state<any[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let translatingBooks = $state<Set<string>>(new Set());
-	let translatingAll = $state(false);
-	let translateErrors = $state<Array<{ bookId: string; message: string }>>([]);
 
 	const pageTitle = $derived(`${$t('builds.title')} - ${$t('app.title')}`);
 
@@ -38,34 +37,6 @@
 		}
 	}
 
-	function dismissTranslateError(index: number) {
-		translateErrors = translateErrors.filter((_, i) => i !== index);
-	}
-
-	async function triggerTranslate(bookId: string) {
-		translatingBooks = new Set([...translatingBooks, bookId]);
-		try {
-			const res = await fetch(`/api/books/${bookId}/translate`, { method: 'POST' });
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-				translateErrors = [...translateErrors, { bookId, message: body.error || `HTTP ${res.status}` }];
-			}
-		} catch (e) {
-			translateErrors = [...translateErrors, { bookId, message: String(e) }];
-		} finally {
-			translatingBooks = new Set([...translatingBooks].filter(id => id !== bookId));
-		}
-	}
-
-	async function triggerTranslateAll() {
-		translatingAll = true;
-		try {
-			await Promise.all(books.map(book => triggerTranslate(book.id)));
-		} finally {
-			translatingAll = false;
-		}
-	}
-
 	onMount(() => {
 		loadBooks();
 	});
@@ -87,14 +58,14 @@
 		<button
 			class="tab"
 			class:active={activeTab === 'builds'}
-			onclick={() => activeTab = 'builds'}
+			onclick={() => goto('/builds')}
 		>
 			빌드 로그
 		</button>
 		<button
 			class="tab"
 			class:active={activeTab === 'translations'}
-			onclick={() => activeTab = 'translations'}
+			onclick={() => goto('/builds?tab=translations')}
 		>
 			번역 로그
 		</button>
@@ -113,6 +84,7 @@
 					<thead>
 						<tr>
 							<th>Book Name</th>
+							<th>{$t('builds.status')}</th>
 							<th>Last Updated</th>
 							<th></th>
 						</tr>
@@ -121,12 +93,21 @@
 						{#each books as book}
 							<tr>
 								<td class="book-name">{book.name}</td>
+								<td>
+									{#if book.latestBuildStatus}
+										<span class="status status-{book.latestBuildStatus}">
+											{$t(`builds.${book.latestBuildStatus}`)}
+										</span>
+									{:else}
+										<span class="status status-none">-</span>
+									{/if}
+								</td>
 								<td class="date">
 									{book.lastUpdated ? new Date(book.lastUpdated).toLocaleDateString($locale === 'ko' ? 'ko-KR' : 'en-US') : '-'}
 								</td>
 								<td class="actions">
 									<a href="/builds/book/{book.id}" class="btn btn-primary">
-										View Builds
+										View Logs
 									</a>
 								</td>
 							</tr>
@@ -136,27 +117,6 @@
 			</div>
 		{/if}
 	{:else}
-		<div class="tab-actions">
-			<button
-				class="btn btn-primary"
-				onclick={triggerTranslateAll}
-				disabled={translatingAll || books.length === 0}
-			>
-				{translatingAll ? 'Translating...' : 'Translate All'}
-			</button>
-		</div>
-
-		{#if translateErrors.length > 0}
-			<div class="translate-errors">
-				{#each translateErrors as err, i}
-					<div class="translate-error">
-						<span>Translation failed for <strong>{err.bookId}</strong>: {err.message}</span>
-						<button class="dismiss-btn" onclick={() => dismissTranslateError(i)}>&times;</button>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
 		{#if loading}
 			<div class="loading">Loading...</div>
 		{:else if books.length === 0}
@@ -167,6 +127,7 @@
 					<thead>
 						<tr>
 							<th>Book Name</th>
+							<th>{$t('builds.status')}</th>
 							<th></th>
 						</tr>
 					</thead>
@@ -174,17 +135,19 @@
 						{#each books as book}
 							<tr>
 								<td class="book-name">{book.name}</td>
+								<td>
+									{#if book.latestTranslationStatus}
+										<span class="status status-{book.latestTranslationStatus}">
+											{$t(`builds.${book.latestTranslationStatus}`)}
+										</span>
+									{:else}
+										<span class="status status-none">-</span>
+									{/if}
+								</td>
 								<td class="actions">
 									<a href="/builds/translations/book/{book.id}" class="btn btn-primary">
 										View Logs
 									</a>
-									<button
-										class="btn btn-gray"
-										onclick={() => triggerTranslate(book.id)}
-										disabled={translatingBooks.has(book.id)}
-									>
-										{translatingBooks.has(book.id) ? 'Translating...' : 'Translate'}
-									</button>
 								</td>
 							</tr>
 						{/each}

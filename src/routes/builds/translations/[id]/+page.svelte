@@ -65,7 +65,7 @@
 <main class="log-page">
 	<div class="container">
 		<header>
-			<a href="/builds" class="back-link">← Back</a>
+			<a href="/builds/translations/book/{data.bookId}" class="back-link">← Back</a>
 			<h1>Translation #{data.logId} — {data.bookId} → {data.targetLocale}</h1>
 			<span class="status status-{status}">{status}</span>
 		</header>

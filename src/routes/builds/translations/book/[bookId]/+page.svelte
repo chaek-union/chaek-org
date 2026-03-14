@@ -9,6 +9,7 @@
 	let logs = $state<any[]>([]);
 	let loading = $state(true);
 	let translating = $state(false);
+	let clearingCache = $state(false);
 
 	const pageTitle = $derived(`${data.bookId.replace(/-/g, ' ')} - Translation Logs - ${$t('app.title')}`);
 
@@ -35,6 +36,18 @@
 			console.error('Error triggering translation:', e);
 		} finally {
 			translating = false;
+		}
+	}
+
+	async function clearCache() {
+		if (!confirm('Clear all translation cache for this book? Next translation will re-translate everything.')) return;
+		clearingCache = true;
+		try {
+			await fetch(`/api/books/${data.bookId}/clear-cache`, { method: 'POST' });
+		} catch (e) {
+			console.error('Error clearing cache:', e);
+		} finally {
+			clearingCache = false;
 		}
 	}
 
@@ -66,15 +79,24 @@
 <main>
 	<div class="container">
 		<header class="builds-header">
-			<a href="/builds" class="btn btn-gray">← Back</a>
+			<a href="/builds?tab=translations" class="btn btn-gray">← Back</a>
 			<h1>{data.bookId.replace(/-/g, ' ')}</h1>
-			<button
-				class="btn btn-success"
-				onclick={triggerTranslate}
-				disabled={translating}
-			>
-				{translating ? 'Translating...' : 'Translate'}
-			</button>
+			<div class="header-actions">
+				<button
+					class="btn btn-gray"
+					onclick={clearCache}
+					disabled={clearingCache}
+				>
+					{clearingCache ? 'Clearing...' : 'Clear Cache'}
+				</button>
+				<button
+					class="btn btn-success"
+					onclick={triggerTranslate}
+					disabled={translating}
+				>
+					{translating ? 'Translating...' : 'Translate'}
+				</button>
+			</div>
 		</header>
 
 		{#if loading}

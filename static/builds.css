@@ -23,6 +23,11 @@ header {
 	text-transform: capitalize;
 }
 
+.header-actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
 /* Tabs */
 .tabs {
 	display: flex;

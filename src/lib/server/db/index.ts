@@ -232,6 +232,22 @@ export async function initDatabase() {
 			console.log('Dev user ensured in database');
 		}
 
+		// Mark stale "running" jobs as "failed" (from previous server crash/restart)
+		const staleResults = await client.query(`
+			UPDATE translation_logs SET status = 'failed', completed_at = CURRENT_TIMESTAMP
+			WHERE status = 'running'
+		`);
+		if (staleResults.rowCount && staleResults.rowCount > 0) {
+			console.log(`Marked ${staleResults.rowCount} stale translation job(s) as failed`);
+		}
+		const staleBuildResults = await client.query(`
+			UPDATE build_logs SET status = 'failed', completed_at = CURRENT_TIMESTAMP
+			WHERE status = 'running'
+		`);
+		if (staleBuildResults.rowCount && staleBuildResults.rowCount > 0) {
+			console.log(`Marked ${staleBuildResults.rowCount} stale build job(s) as failed`);
+		}
+
 		// Discover and clone books if none exist
 		await discoverAndCloneBooks();
 	} catch (error) {

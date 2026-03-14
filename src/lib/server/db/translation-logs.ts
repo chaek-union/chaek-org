@@ -79,6 +79,17 @@ export async function appendTranslationLogLine(
 	return logLine!;
 }
 
+/**
+ * Get latest translation status per book
+ */
+export async function getLatestTranslationStatuses(): Promise<{ book_id: string; status: string }[]> {
+	return query<{ book_id: string; status: string }>(
+		`SELECT DISTINCT ON (book_id) book_id, status
+		FROM translation_logs
+		ORDER BY book_id, started_at DESC`
+	);
+}
+
 export async function getTranslationLogLines(logId: number): Promise<TranslationLogLine[]> {
 	return query<TranslationLogLine>(
 		`SELECT * FROM translation_log_lines
