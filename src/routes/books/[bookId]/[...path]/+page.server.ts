@@ -55,9 +55,12 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         }
 
         // Compile markdown to HTML using mdsvex
-        const remarkGfm = (await import("remark-gfm")).default;
+        const remarkGfmMod = await import("remark-gfm");
+        const remarkGfm = remarkGfmMod.default || remarkGfmMod;
+        const remarkFootnotesMod = await import("remark-footnotes");
+        const remarkFootnotes = remarkFootnotesMod.default || remarkFootnotesMod;
         const result = await compile(markdown, {
-            remarkPlugins: [remarkGfm],
+            remarkPlugins: [remarkGfm, [remarkFootnotes, { inlineNotes: true }]],
             rehypePlugins: [
                 (await import("rehype-slug")).default,
                 [

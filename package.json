@@ -36,8 +36,8 @@
 		"lunr": "^2.3.9",
 		"markdown-it": "^14.1.0",
 		"pg": "^8.16.3",
-		"remark-footnotes": "^4.0.1",
-		"remark-gfm": "^4.0.1",
+		"remark-footnotes": "^2.0.0",
+		"remark-gfm": "^1.0.0",
 		"simple-git": "^3.28.0",
 		"svelte-i18n": "^4.0.1"
 	}
