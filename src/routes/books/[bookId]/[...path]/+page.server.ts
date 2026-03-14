@@ -8,6 +8,10 @@ import fs from "fs/promises";
 import path from "path";
 import { compile } from "mdsvex";
 import hljs from "highlight.js";
+import remarkGfm from "remark-gfm";
+import remarkFootnotes from "remark-footnotes";
+import rehypeSlug from "rehype-slug";
+import rehypeAutolinkHeadings from "rehype-autolink-headings";
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
     const book = await getBookMetadata(params.bookId);
@@ -55,18 +59,11 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         }
 
         // Compile markdown to HTML using mdsvex
-        const remarkGfmMod = await import("remark-gfm");
-        const remarkGfm = remarkGfmMod.default || remarkGfmMod;
-        const remarkFootnotesMod = await import("remark-footnotes");
-        const remarkFootnotes = remarkFootnotesMod.default || remarkFootnotesMod;
         const result = await compile(markdown, {
             remarkPlugins: [remarkGfm, [remarkFootnotes, { inlineNotes: true }]],
             rehypePlugins: [
-                (await import("rehype-slug")).default,
-                [
-                    (await import("rehype-autolink-headings")).default,
-                    { behavior: "wrap" },
-                ],
+                rehypeSlug,
+                [rehypeAutolinkHeadings, { behavior: "wrap" }],
             ],
             highlight: {
                 highlighter: (code: string, lang: string | undefined) => {
