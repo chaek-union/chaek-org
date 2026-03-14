@@ -133,8 +133,8 @@ const staticFileHandle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	// Serve assets from books directory (e.g., /books/{bookId}/assets/...)
-	if (pathname.startsWith('/books/') && pathname.includes('/assets/')) {
+	// Serve assets from books directory (e.g., /books/{bookId}/img/..., /books/{bookId}/assets/...)
+	if (pathname.startsWith('/books/') && pathname.match(/^\/books\/[^\/]+\/.+\..+$/)) {
 		// Extract book ID and asset path
 		const match = pathname.match(/^\/books\/([^\/]+)\/(.+)$/);
 		if (match) {
