@@ -32,6 +32,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
     const filePath = path.join(bookRoot, pagePath);
 
     let htmlContent = "";
+    let isTranslated = false;
 
     try {
         // Read the markdown file
@@ -39,8 +40,6 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 
         // Process markdown: replace variables and anchors
         markdown = await processMarkdown(params.bookId, markdown);
-
-        // Translate if user's locale differs from book language
         const userLocale = cookies.get('locale') as 'ko' | 'en' | undefined;
         if (userLocale === 'ko' || userLocale === 'en') {
             const [translated, translatedNav, translatedTitle] = await Promise.all([
@@ -49,6 +48,7 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
                 translateText(params.bookId, book.name, userLocale, 'title')
             ]);
             markdown = translated.markdown;
+            isTranslated = translated.translated;
             navigation = translatedNav;
             book.name = translatedTitle;
         }
@@ -148,5 +148,6 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         htmlContent,
         navigation,
         currentPath: pagePath,
+        isTranslated,
     };
 };

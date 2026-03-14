@@ -213,6 +213,16 @@
 }
 
 /* Markdown Content Styles */
+.translation-notice {
+	padding: 0.625rem 1rem;
+	background: #eff6ff;
+	border: 1px solid #bfdbfe;
+	border-radius: 6px;
+	color: #1e40af;
+	font-size: 0.85rem;
+	margin-bottom: 1rem;
+}
+
 .book-content {
 	line-height: 1.7;
 	color: #333;

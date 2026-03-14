@@ -469,6 +469,12 @@
 						{/if}
 					</div>
 
+					{#if data.isTranslated}
+						<div class="translation-notice">
+							{$t('book.autoTranslated')}
+						</div>
+					{/if}
+
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="book-content" onclick={handleLinkClick}>

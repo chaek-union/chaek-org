@@ -75,7 +75,8 @@
 		"introduction": "Introduction",
 		"toc": "Table of Contents",
 		"prevChapter": "Previous",
-		"nextChapter": "Next"
+		"nextChapter": "Next",
+		"autoTranslated": "This page has been automatically translated from its original language."
 	},
 	"chatbot": {
 		"title": "Chaek AI",
