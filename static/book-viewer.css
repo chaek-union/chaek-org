@@ -220,7 +220,12 @@
 	border-radius: 6px;
 	color: #1e40af;
 	font-size: 0.85rem;
-	margin-bottom: 1rem;
+	max-width: 800px;
+	margin: 1.5rem auto 0;
+	padding-left: 2rem;
+	padding-right: 2rem;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .book-content {
