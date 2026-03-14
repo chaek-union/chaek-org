@@ -1,10 +1,12 @@
 import { env } from '$env/dynamic/private';
 import fs from 'fs/promises';
 import path from 'path';
+import { simpleGit } from 'simple-git';
 import { getBookRoot, parseSummary, getFilePaths } from './summary-parser';
 import { processMarkdown } from './markdown-processor';
 import { createTranslationLog, updateTranslationLog } from './db/translation-logs';
 import { translationEvents } from './translation-events';
+import { BOOKS_DIR } from './books';
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
@@ -220,6 +222,63 @@ function pageCacheExists(bookId: string, targetLang: string, pagePath: string): 
 	return fs.access(getTranslationCachePath(bookId, targetLang, pagePath)).then(() => true).catch(() => false);
 }
 
+function getHashPath(bookId: string, targetLang: string, pagePath: string): string {
+	return getTranslationCachePath(bookId, targetLang, pagePath) + '.hash';
+}
+
+async function getStoredHash(bookId: string, targetLang: string, pagePath: string): Promise<string | null> {
+	try {
+		return (await fs.readFile(getHashPath(bookId, targetLang, pagePath), 'utf-8')).trim();
+	} catch {
+		return null;
+	}
+}
+
+async function saveHash(bookId: string, targetLang: string, pagePath: string, hash: string): Promise<void> {
+	const hashPath = getHashPath(bookId, targetLang, pagePath);
+	await fs.mkdir(path.dirname(hashPath), { recursive: true });
+	await fs.writeFile(hashPath, hash, 'utf-8');
+}
+
+/**
+ * Get git file hashes for all files in a book repo.
+ * Returns a map of relative file path → git blob hash.
+ */
+async function getGitFileHashes(bookId: string): Promise<Map<string, string>> {
+	const repoDir = path.join(BOOKS_DIR, bookId);
+	const git = simpleGit(repoDir);
+	const hashes = new Map<string, string>();
+
+	try {
+		// ls-tree -r HEAD gives: <mode> <type> <hash>\t<path>
+		const result = await git.raw(['ls-tree', '-r', 'HEAD']);
+		for (const line of result.trim().split('\n')) {
+			if (!line) continue;
+			const match = line.match(/^\d+\s+\w+\s+([a-f0-9]+)\t(.+)$/);
+			if (match) {
+				hashes.set(match[2], match[1]);
+			}
+		}
+	} catch {
+		// Not a git repo or no HEAD, return empty
+	}
+
+	return hashes;
+}
+
+/**
+ * Check if a page needs re-translation by comparing git hashes.
+ * Returns true if translation is needed (file changed or no cache).
+ */
+async function pageNeedsTranslation(
+	bookId: string, targetLang: string, pagePath: string, currentHash: string | undefined
+): Promise<boolean> {
+	if (!currentHash) return true; // No git hash available, translate
+	if (!await pageCacheExists(bookId, targetLang, pagePath)) return true; // No cache
+	const storedHash = await getStoredHash(bookId, targetLang, pagePath);
+	return storedHash !== currentHash; // Hash mismatch = content changed
+}
+
 // ── Public API (cache-only reads) ───────────────────────────────────────────
 
 /**
@@ -308,14 +367,17 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		const navigation = await parseSummary(bookId);
 		const filePaths = getFilePaths(navigation);
 
-		await log(`Found ${filePaths.length} pages to translate`);
+		// Get git hashes for change detection
+		const gitHashes = await getGitFileHashes(bookId);
+		await log(`Found ${filePaths.length} pages, ${gitHashes.size} git-tracked files`);
 
-		// 1. Navigation titles
+		// 1. Navigation titles — always re-translate (SUMMARY.md may have changed)
 		const navCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_nav.json');
-		try {
-			await fs.access(navCachePath);
-			await log('Navigation titles: cached, skipping');
-		} catch {
+		const summaryHash = gitHashes.get('SUMMARY.md');
+		const navStoredHash = await getStoredHash(bookId, targetLocale, '_nav.json');
+		if (navStoredHash && navStoredHash === summaryHash) {
+			await log('Navigation titles: unchanged, skipping');
+		} else {
 			const titles: string[] = [];
 			function collectTitles(items: typeof navigation) {
 				for (const item of items) {
@@ -343,16 +405,18 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				const translatedNav = applyTitles(navigation);
 				await fs.mkdir(path.dirname(navCachePath), { recursive: true });
 				await fs.writeFile(navCachePath, JSON.stringify(translatedNav), 'utf-8');
+				if (summaryHash) await saveHash(bookId, targetLocale, '_nav.json', summaryHash);
 				await log('Navigation titles: done');
 			}
 		}
 
-		// 2. Book title
+		// 2. Book title — re-translate if book.json changed
 		const titleCachePath = path.join(CACHE_DIR, bookId, targetLocale, '_title.txt');
-		try {
-			await fs.access(titleCachePath);
-			await log('Book title: cached, skipping');
-		} catch {
+		const bookJsonHash = gitHashes.get('book.json');
+		const titleStoredHash = await getStoredHash(bookId, targetLocale, '_title.txt');
+		if (titleStoredHash && titleStoredHash === bookJsonHash) {
+			await log('Book title: unchanged, skipping');
+		} else {
 			try {
 				const bookJsonPath = path.join(process.cwd(), 'books', bookId, 'book.json');
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
@@ -361,23 +425,31 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 					const translated = await translateSingle(bookJson.title, bookLang, targetLocale);
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
+					if (bookJsonHash) await saveHash(bookId, targetLocale, '_title.txt', bookJsonHash);
 					await log(`Book title: "${translated}"`);
 				}
 			} catch { /* no book.json or no title */ }
 		}
 
-		// 3. All pages (with retry)
+		// 3. All pages — only translate if git hash changed
 		const MAX_RETRIES = 3;
 		let pending = [...filePaths];
 		const finalFailed: string[] = [];
 		let completedCount = 0;
 		let skippedCount = 0;
 
+		// Resolve file paths relative to book root for git hash lookup
+		const bookRootRelative = path.relative(path.join(BOOKS_DIR, bookId), bookRoot);
+
 		for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 			const failedThisRound: string[] = [];
 
 			for (const filePath of pending) {
-				if (await pageCacheExists(bookId, targetLocale, filePath)) {
+				// Look up git hash for this file
+				const gitPath = bookRootRelative ? path.join(bookRootRelative, filePath) : filePath;
+				const currentHash = gitHashes.get(gitPath) || gitHashes.get(filePath);
+
+				if (!await pageNeedsTranslation(bookId, targetLocale, filePath, currentHash)) {
 					skippedCount++;
 					continue;
 				}
@@ -391,6 +463,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 					const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);
 					await fs.mkdir(path.dirname(cachePath), { recursive: true });
 					await fs.writeFile(cachePath, translated, 'utf-8');
+					if (currentHash) await saveHash(bookId, targetLocale, filePath, currentHash);
 
 					completedCount++;
 					await log(`[${completedCount + skippedCount}/${filePaths.length}] ${filePath}`);
@@ -420,7 +493,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 			throw new Error(`Translation incomplete: ${finalFailed.length} pages failed`);
 		}
 
-		await log(`Translation complete: ${completedCount} translated, ${skippedCount} cached`);
+		await log(`Translation complete: ${completedCount} translated, ${skippedCount} unchanged`);
 		await updateTranslationLog(logId, 'success');
 		await translationEvents.emitStatus(logId, 'success');
 		return logId;
@@ -436,17 +509,14 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 }
 
 /**
- * Invalidate translation cache for a book, then re-translate in background.
+ * Re-translate a book in the background.
+ * Git hash comparison ensures only changed pages are re-translated.
  */
 export async function invalidateBookTranslations(bookId: string): Promise<void> {
-	const bookCacheDir = path.join(CACHE_DIR, bookId);
-	try {
-		bookLanguageCache.delete(bookId);
-		await fs.rm(bookCacheDir, { recursive: true, force: true });
-		console.log(`[translate] Invalidated translation cache for ${bookId}`);
-	} catch { /* non-critical */ }
+	bookLanguageCache.delete(bookId);
+	console.log(`[translate] Triggering re-translation for ${bookId} (git-based change detection)`);
 
-	// Re-translate in background sequentially
+	// Re-translate in background sequentially — unchanged pages will be skipped
 	preTranslateBook(bookId, 'ko')
 		.then(() => preTranslateBook(bookId, 'en'))
 		.catch(console.error);
