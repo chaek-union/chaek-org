@@ -7,6 +7,7 @@ import { processMarkdown } from './markdown-processor';
 import { createTranslationLog, updateTranslationLog } from './db/translation-logs';
 import { translationEvents } from './translation-events';
 import { BOOKS_DIR } from './books';
+import { loadBookGlossary, buildGlossaryPrompt, invalidateGlossaryCache } from './glossary';
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
@@ -114,7 +115,7 @@ async function callLLM(prompt: string, text: string): Promise<string> {
 	return data.choices[0].message.content.trim();
 }
 
-function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown: boolean): string {
+function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown: boolean, glossaryText = ''): string {
 	const src = LANG_NAMES[sourceLang] || sourceLang;
 	const tgt = LANG_NAMES[targetLang] || targetLang;
 
@@ -127,22 +128,23 @@ function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown
 			'- Do not add, remove, or reorder any structural elements',
 			'- Translate only the natural language text content',
 			'- Do not wrap the output in code fences or add any extra text',
-			'- Output ONLY the translated Markdown, nothing else'
+			'- Output ONLY the translated Markdown, nothing else',
+			glossaryText
 		].join('\n');
 	}
 
-	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Output ONLY the translation, nothing else.`;
+	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Output ONLY the translation, nothing else.${glossaryText}`;
 }
 
-async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false): Promise<string> {
-	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown);
+async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false, glossaryText = ''): Promise<string> {
+	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown, glossaryText);
 	return callLLM(prompt, text);
 }
 
-async function translateBatch(texts: string[], sourceLang: string, targetLang: string): Promise<string[]> {
+async function translateBatch(texts: string[], sourceLang: string, targetLang: string, glossaryText = ''): Promise<string[]> {
 	const results: string[] = [];
 	for (let i = 0; i < texts.length; i++) {
-		results.push(await translateSingle(texts[i], sourceLang, targetLang));
+		results.push(await translateSingle(texts[i], sourceLang, targetLang, false, glossaryText));
 	}
 	return results;
 }
@@ -199,13 +201,13 @@ function chunkMarkdown(text: string, maxChunk: number): string[] {
 	return chunks;
 }
 
-async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string): Promise<string> {
+async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string, glossaryText = ''): Promise<string> {
 	const { text: protectedText, restore } = protectMarkdown(markdown);
 	const chunks = chunkMarkdown(protectedText, 1500);
 
 	const translatedChunks: string[] = [];
 	for (const chunk of chunks) {
-		const translated = await translateSingle(chunk, sourceLang, targetLang, true);
+		const translated = await translateSingle(chunk, sourceLang, targetLang, true, glossaryText);
 		translatedChunks.push(translated);
 	}
 
@@ -367,6 +369,13 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		const navigation = await parseSummary(bookId);
 		const filePaths = getFilePaths(navigation);
 
+		// Load glossary for this book
+		const glossaryEntries = await loadBookGlossary(bookId);
+		const glossaryText = buildGlossaryPrompt(glossaryEntries, bookLang, targetLocale);
+		if (glossaryEntries.length > 0) {
+			await log(`Loaded ${glossaryEntries.length} glossary term(s)`);
+		}
+
 		// Get git hashes for change detection
 		const gitHashes = await getGitFileHashes(bookId);
 		await log(`Found ${filePaths.length} pages, ${gitHashes.size} git-tracked files`);
@@ -389,7 +398,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 
 			if (titles.length > 0) {
 				await log(`Translating ${titles.length} navigation titles...`);
-				const translatedTitles = await translateBatch(titles, bookLang, targetLocale);
+				const translatedTitles = await translateBatch(titles, bookLang, targetLocale, glossaryText);
 				let idx = 0;
 				function applyTitles(items: typeof navigation): typeof navigation {
 					return items.map((item) => {
@@ -422,7 +431,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
 				if (bookJson.title) {
 					await log(`Translating book title: "${bookJson.title}"`);
-					const translated = await translateSingle(bookJson.title, bookLang, targetLocale);
+					const translated = await translateSingle(bookJson.title, bookLang, targetLocale, false, glossaryText);
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
 					if (bookJsonHash) await saveHash(bookId, targetLocale, '_title.txt', bookJsonHash);
@@ -458,7 +467,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 					const fullPath = path.join(bookRoot, filePath);
 					let markdown = await fs.readFile(fullPath, 'utf-8');
 					markdown = await processMarkdown(bookId, markdown, { bookRoot });
-					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale);
+					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale, glossaryText);
 
 					const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);
 					await fs.mkdir(path.dirname(cachePath), { recursive: true });
@@ -514,6 +523,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
  */
 export async function invalidateBookTranslations(bookId: string): Promise<void> {
 	bookLanguageCache.delete(bookId);
+	invalidateGlossaryCache(bookId);
 	console.log(`[translate] Triggering re-translation for ${bookId} (git-based change detection)`);
 
 	// Re-translate in background sequentially — unchanged pages will be skipped

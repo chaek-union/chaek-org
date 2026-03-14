@@ -1,5 +1,7 @@
 # 책 (Chaek) 프로젝트 - Claude AI 가이드
 
+- 패키지 매니저: pnpm (npm 대신 pnpm 사용)
+
 ## 프로젝트 개요
 
 이 프로젝트는 대학 교재를 호스팅하는 SvelteKit 기반 웹 플랫폼입니다. GitHub 저장소에서 Markdown 기반 교재를 직접 렌더링하고 Lunr 검색 인덱스를 제공합니다.
