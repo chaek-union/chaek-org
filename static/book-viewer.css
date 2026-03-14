@@ -709,8 +709,6 @@ html {
 
 /* Footnotes */
 .book-content .footnotes {
-	margin-top: 2rem;
-	padding-top: 1rem;
 	font-size: 0.9em;
 	color: #57606a;
 }
