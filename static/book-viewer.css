@@ -716,13 +716,7 @@ html {
 	color: #57606a;
 }
 
-.book-content hr + .footnotes {
-	border-top: none;
-	padding-top: 0;
-}
-
-.book-content .footnotes hr,
-.book-content hr:has(+ .footnotes) {
+.book-content .footnotes hr {
 	display: none;
 }
 
