@@ -7,6 +7,7 @@ import type { PageServerLoad } from "./$types";
 import fs from "fs/promises";
 import path from "path";
 import { compile } from "mdsvex";
+import hljs from "highlight.js";
 
 export const load: PageServerLoad = async ({ params, cookies }) => {
     const book = await getBookMetadata(params.bookId);
@@ -38,8 +39,8 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         // Read the markdown file
         let markdown = await fs.readFile(filePath, "utf-8");
 
-        // Process markdown: replace variables and anchors
-        markdown = await processMarkdown(params.bookId, markdown);
+        // Process markdown: replace variables, anchors, and includes
+        markdown = await processMarkdown(params.bookId, markdown, { bookRoot });
         const userLocale = cookies.get('locale') as 'ko' | 'en' | undefined;
         if (userLocale === 'ko' || userLocale === 'en') {
             const [translated, translatedNav, translatedTitle] = await Promise.all([
@@ -54,7 +55,9 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         }
 
         // Compile markdown to HTML using mdsvex
+        const remarkGfm = (await import("remark-gfm")).default;
         const result = await compile(markdown, {
+            remarkPlugins: [remarkGfm],
             rehypePlugins: [
                 (await import("rehype-slug")).default,
                 [
@@ -62,6 +65,19 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
                     { behavior: "wrap" },
                 ],
             ],
+            highlight: {
+                highlighter: (code: string, lang: string | undefined) => {
+                    if (lang && hljs.getLanguage(lang)) {
+                        const highlighted = hljs.highlight(code, { language: lang }).value;
+                        return `<pre class="code-block"><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+                    }
+                    const escaped = code
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    return `<pre class="code-block"><code>${escaped}</code></pre>`;
+                }
+            },
         });
 
         if (result && result.code) {

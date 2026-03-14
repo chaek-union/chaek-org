@@ -75,18 +75,49 @@ function escapeBackslashesForPdf(content: string): string {
 }
 
 /**
+ * Process GitBook-style {% include "./path" %} directives.
+ * Resolves file content relative to the book root.
+ */
+async function processIncludes(
+    content: string,
+    bookRoot: string,
+): Promise<string> {
+    const includePattern = /\{%\s*include\s+["']([^"']+)["']\s*%\}/g;
+    const matches = [...content.matchAll(includePattern)];
+    if (matches.length === 0) return content;
+
+    let result = content;
+    for (const match of matches) {
+        const [fullMatch, includePath] = match;
+        try {
+            const filePath = path.join(bookRoot, includePath);
+            const fileContent = await fs.readFile(filePath, "utf-8");
+            result = result.replace(fullMatch, fileContent.trimEnd());
+        } catch {
+            // If include file not found, leave as-is
+        }
+    }
+    return result;
+}
+
+/**
  * Process markdown content with variable replacement
  */
 export async function processMarkdown(
     bookId: string,
     markdown: string,
-    options?: { skipAnchors?: boolean; forPdf?: boolean },
+    options?: { skipAnchors?: boolean; forPdf?: boolean; bookRoot?: string },
 ): Promise<string> {
     // Get book variables
     const variables = await getBookVariables(bookId);
 
     // Replace variables
     let processed = replaceVariables(markdown, variables);
+
+    // Process includes if bookRoot is provided
+    if (options?.bookRoot) {
+        processed = await processIncludes(processed, options.bookRoot);
+    }
 
     // Process anchors only if not skipped (skip for PDF generation)
     if (!options?.skipAnchors) {

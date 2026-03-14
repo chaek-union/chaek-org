@@ -134,6 +134,57 @@
 		}
 	});
 
+	// Enhance code blocks with line numbers and copy button
+	$effect(() => {
+		data.htmlContent;
+		data.currentPath;
+
+		setTimeout(() => {
+			const contentDiv = document.querySelector('.book-content');
+			if (!contentDiv) return;
+
+			contentDiv.querySelectorAll('pre.code-block').forEach((pre) => {
+				if (pre.parentElement?.classList.contains('code-block-wrapper')) return;
+
+				const wrapper = document.createElement('div');
+				wrapper.className = 'code-block-wrapper';
+
+				// Copy button
+				const copyBtn = document.createElement('button');
+				copyBtn.className = 'copy-btn';
+				copyBtn.textContent = 'Copy';
+				copyBtn.onclick = async () => {
+					const code = pre.querySelector('code');
+					if (code) {
+						await navigator.clipboard.writeText(code.textContent || '');
+						copyBtn.textContent = 'Copied!';
+						copyBtn.classList.add('copied');
+						setTimeout(() => {
+							copyBtn.textContent = 'Copy';
+							copyBtn.classList.remove('copied');
+						}, 2000);
+					}
+				};
+
+				// Line numbers
+				const code = pre.querySelector('code');
+				if (code) {
+					const lines = (code.textContent || '').split('\n');
+					// Remove trailing empty line
+					if (lines[lines.length - 1] === '') lines.pop();
+					const lineNums = document.createElement('div');
+					lineNums.className = 'code-line-numbers';
+					lineNums.innerHTML = lines.map((_, i) => `<span>${i + 1}</span>`).join('');
+					wrapper.appendChild(lineNums);
+				}
+
+				pre.parentNode!.insertBefore(wrapper, pre);
+				wrapper.appendChild(copyBtn);
+				wrapper.appendChild(pre);
+			});
+		}, 0);
+	});
+
 	// Load search index on mount
 	$effect(() => {
 		loadSearchIndex();
@@ -356,6 +407,7 @@
 <svelte:head>
 	<title>{pageTitle}</title>
 	<link rel="stylesheet" href="/book-viewer.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css" />
 </svelte:head>
 
 <div class="book-viewer-wrapper">

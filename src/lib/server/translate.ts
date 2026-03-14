@@ -385,7 +385,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				try {
 					const fullPath = path.join(bookRoot, filePath);
 					let markdown = await fs.readFile(fullPath, 'utf-8');
-					markdown = await processMarkdown(bookId, markdown);
+					markdown = await processMarkdown(bookId, markdown, { bookRoot });
 					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale);
 
 					const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);

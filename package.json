@@ -32,9 +32,12 @@
 		"@openrouter/sdk": "^0.9.11",
 		"@types/lunr": "^2.3.7",
 		"@types/markdown-it": "^14.1.2",
+		"highlight.js": "^11.11.1",
 		"lunr": "^2.3.9",
 		"markdown-it": "^14.1.0",
 		"pg": "^8.16.3",
+		"remark-footnotes": "^4.0.1",
+		"remark-gfm": "^4.0.1",
 		"simple-git": "^3.28.0",
 		"svelte-i18n": "^4.0.1"
 	}
