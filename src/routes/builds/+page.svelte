@@ -6,13 +6,13 @@
 
 	let { data }: { data: PageData } = $props();
 
+	let activeTab = $state<'builds' | 'translations'>('builds');
 	let books = $state<any[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 	let translatingBooks = $state<Set<string>>(new Set());
 	let translatingAll = $state(false);
 	let translateErrors = $state<Array<{ bookId: string; message: string }>>([]);
-	let translationLogs = $state<any[]>([]);
 
 	const pageTitle = $derived(`${$t('builds.title')} - ${$t('app.title')}`);
 
@@ -38,17 +38,6 @@
 		}
 	}
 
-	async function loadTranslationLogs() {
-		try {
-			const response = await fetch('/api/translations');
-			if (response.ok) {
-				translationLogs = await response.json();
-			}
-		} catch (e) {
-			console.error('Error loading translation logs:', e);
-		}
-	}
-
 	function dismissTranslateError(index: number) {
 		translateErrors = translateErrors.filter((_, i) => i !== index);
 	}
@@ -60,9 +49,6 @@
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
 				translateErrors = [...translateErrors, { bookId, message: body.error || `HTTP ${res.status}` }];
-			} else {
-				// Reload translation logs after triggering
-				setTimeout(() => loadTranslationLogs(), 500);
 			}
 		} catch (e) {
 			translateErrors = [...translateErrors, { bookId, message: String(e) }];
@@ -80,22 +66,8 @@
 		}
 	}
 
-	function formatDate(date: string) {
-		return new Date(date).toLocaleString($locale === 'ko' ? 'ko-KR' : 'en-US');
-	}
-
-	function formatDuration(started: string, completed: string | null) {
-		if (!completed) return '-';
-		const duration = new Date(completed).getTime() - new Date(started).getTime();
-		const seconds = Math.floor(duration / 1000);
-		const minutes = Math.floor(seconds / 60);
-		if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-		return `${seconds}s`;
-	}
-
 	onMount(() => {
 		loadBooks();
-		loadTranslationLogs();
 	});
 </script>
 
@@ -109,101 +81,116 @@
 <main class="container">
 	<header class="builds-header">
 		<h1>{$t('builds.title')}</h1>
-		<button
-			class="btn btn-primary"
-			onclick={triggerTranslateAll}
-			disabled={translatingAll || books.length === 0}
-		>
-			{translatingAll ? 'Translating...' : 'Translate All'}
-		</button>
 	</header>
 
-	{#if translateErrors.length > 0}
-		<div class="translate-errors">
-			{#each translateErrors as err, i}
-				<div class="translate-error">
-					<span>Translation failed for <strong>{err.bookId}</strong>: {err.message}</span>
-					<button class="dismiss-btn" onclick={() => dismissTranslateError(i)}>&times;</button>
-				</div>
-			{/each}
-		</div>
-	{/if}
+	<div class="tabs">
+		<button
+			class="tab"
+			class:active={activeTab === 'builds'}
+			onclick={() => activeTab = 'builds'}
+		>
+			빌드 로그
+		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'translations'}
+			onclick={() => activeTab = 'translations'}
+		>
+			번역 로그
+		</button>
+	</div>
 
-	{#if loading}
-		<div class="loading">Loading...</div>
-	{:else if error}
-		<div class="error">{error}</div>
-	{:else if books.length === 0}
-		<div class="empty">No books found</div>
+	{#if activeTab === 'builds'}
+		{#if loading}
+			<div class="loading">Loading...</div>
+		{:else if error}
+			<div class="error">{error}</div>
+		{:else if books.length === 0}
+			<div class="empty">No books found</div>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
+						<tr>
+							<th>Book Name</th>
+							<th>Last Updated</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each books as book}
+							<tr>
+								<td class="book-name">{book.name}</td>
+								<td class="date">
+									{book.lastUpdated ? new Date(book.lastUpdated).toLocaleDateString($locale === 'ko' ? 'ko-KR' : 'en-US') : '-'}
+								</td>
+								<td class="actions">
+									<a href="/builds/book/{book.id}" class="btn btn-primary">
+										View Builds
+									</a>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{:else}
-		<div class="table-container">
-			<table>
-				<thead>
-					<tr>
-						<th>Book Name</th>
-						<th>Last Updated</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each books as book}
-						<tr>
-							<td class="book-name">{book.name}</td>
-							<td class="date">
-								{book.lastUpdated ? new Date(book.lastUpdated).toLocaleDateString($locale === 'ko' ? 'ko-KR' : 'en-US') : '-'}
-							</td>
-							<td class="actions">
-								<a href="/builds/book/{book.id}" class="btn btn-primary">
-									View Builds
-								</a>
-								<button
-									class="btn btn-gray"
-									onclick={() => triggerTranslate(book.id)}
-									disabled={translatingBooks.has(book.id)}
-								>
-									{translatingBooks.has(book.id) ? 'Translating...' : 'Translate'}
-								</button>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+		<div class="tab-actions">
+			<button
+				class="btn btn-primary"
+				onclick={triggerTranslateAll}
+				disabled={translatingAll || books.length === 0}
+			>
+				{translatingAll ? 'Translating...' : 'Translate All'}
+			</button>
 		</div>
-	{/if}
 
-	{#if translationLogs.length > 0}
-		<h2 class="section-title">Translation Logs</h2>
-		<div class="table-container">
-			<table>
-				<thead>
-					<tr>
-						<th>Book</th>
-						<th>Locale</th>
-						<th>Status</th>
-						<th>Started</th>
-						<th>Duration</th>
-						<th></th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each translationLogs as log}
+		{#if translateErrors.length > 0}
+			<div class="translate-errors">
+				{#each translateErrors as err, i}
+					<div class="translate-error">
+						<span>Translation failed for <strong>{err.bookId}</strong>: {err.message}</span>
+						<button class="dismiss-btn" onclick={() => dismissTranslateError(i)}>&times;</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if loading}
+			<div class="loading">Loading...</div>
+		{:else if books.length === 0}
+			<div class="empty">No books found</div>
+		{:else}
+			<div class="table-container">
+				<table>
+					<thead>
 						<tr>
-							<td class="book-name">{log.book_id}</td>
-							<td>{log.target_locale}</td>
-							<td>
-								<span class="status status-{log.status}">{log.status}</span>
-							</td>
-							<td class="date">{formatDate(log.started_at)}</td>
-							<td class="duration">{formatDuration(log.started_at, log.completed_at)}</td>
-							<td>
-								<a href="/builds/translations/{log.id}" class="btn btn-primary">
-									View Log
-								</a>
-							</td>
+							<th>Book Name</th>
+							<th></th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+					</thead>
+					<tbody>
+						{#each books as book}
+							<tr>
+								<td class="book-name">{book.name}</td>
+								<td class="actions">
+									<a href="/builds/translations/book/{book.id}" class="btn btn-primary">
+										View Logs
+									</a>
+									<button
+										class="btn btn-gray"
+										onclick={() => triggerTranslate(book.id)}
+										disabled={translatingBooks.has(book.id)}
+									>
+										{translatingBooks.has(book.id) ? 'Translating...' : 'Translate'}
+									</button>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	{/if}
 </main>
