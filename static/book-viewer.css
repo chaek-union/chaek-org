@@ -716,6 +716,16 @@ html {
 	color: #57606a;
 }
 
+.book-content hr + .footnotes {
+	border-top: none;
+	padding-top: 0;
+}
+
+.book-content .footnotes hr,
+.book-content hr:has(+ .footnotes) {
+	display: none;
+}
+
 .book-content .footnotes ol {
 	padding-left: 1.5rem;
 }
@@ -729,6 +739,11 @@ html {
 .book-content .footnote-backref {
 	text-decoration: none;
 	margin-left: 0.25rem;
+}
+
+/* Scroll offset for anchor targets under sticky nav */
+.book-content [id] {
+	scroll-margin-top: 70px;
 }
 
 body {
