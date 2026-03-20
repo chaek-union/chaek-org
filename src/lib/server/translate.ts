@@ -526,6 +526,15 @@ export async function invalidateBookTranslations(bookId: string): Promise<void> 
 	invalidateGlossaryCache(bookId);
 	console.log(`[translate] Triggering re-translation for ${bookId} (git-based change detection)`);
 
+	// Delete stale navigation and title caches so fresh (untranslated) data
+	// is served until re-translation completes.
+	for (const lang of ['ko', 'en']) {
+		const navPath = path.join(CACHE_DIR, bookId, lang, '_nav.json');
+		const titlePath = path.join(CACHE_DIR, bookId, lang, '_title.txt');
+		await fs.unlink(navPath).catch(() => {});
+		await fs.unlink(titlePath).catch(() => {});
+	}
+
 	// Re-translate in background sequentially — unchanged pages will be skipped
 	preTranslateBook(bookId, 'ko')
 		.then(() => preTranslateBook(bookId, 'en'))
