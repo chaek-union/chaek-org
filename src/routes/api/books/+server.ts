@@ -20,13 +20,17 @@ export const GET: RequestHandler = async ({ locals }) => {
 		]);
 
 		const buildStatusMap = new Map(latestBuilds.map(b => [b.book_id, b.status]));
-		const translationStatusMap = new Map(latestTranslations.map(t => [t.book_id, t.status]));
+		const translationMap = new Map(latestTranslations.map(t => [t.book_id, { status: t.status, completedAt: t.completed_at }]));
 
-		const booksWithStatus = books.map(book => ({
-			...book,
-			latestBuildStatus: buildStatusMap.get(book.id) || null,
-			latestTranslationStatus: translationStatusMap.get(book.id) || null
-		}));
+		const booksWithStatus = books.map(book => {
+			const translation = translationMap.get(book.id);
+			return {
+				...book,
+				latestBuildStatus: buildStatusMap.get(book.id) || null,
+				latestTranslationStatus: translation?.status || null,
+				lastTranslatedAt: translation?.completedAt || null
+			};
+		});
 
 		return json(booksWithStatus);
 	} catch (error) {

@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { bookExists } from '$lib/server/books';
+import { cancelBookTranslations } from '$lib/server/translate';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -8,7 +9,7 @@ const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
 /**
  * POST /api/books/:bookId/clear-cache
- * Clear all translation cache for a book.
+ * Cancel active translations and clear all translation cache for a book.
  */
 export const POST: RequestHandler = async ({ params, locals }) => {
 	const session = await locals.auth();
@@ -22,6 +23,8 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	if (!await bookExists(bookId)) {
 		throw error(404, 'Book not found');
 	}
+
+	cancelBookTranslations(bookId);
 
 	const cacheDir = path.join(CACHE_DIR, bookId);
 	try {

@@ -411,7 +411,7 @@
 </svelte:head>
 
 <div class="book-viewer-wrapper">
-	<Navbar {data} fullWidth />
+	<Navbar {data} fullWidth bookId={data.book?.id} />
 
 	<div class="book-viewer">
 		<!-- Sidebar overlay for mobile -->

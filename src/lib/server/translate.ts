@@ -12,7 +12,7 @@ import { loadBookGlossary, buildGlossaryPrompt, invalidateGlossaryCache } from '
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
 const bookLanguageCache = new Map<string, 'ko' | 'en'>();
-const preTranslateInProgress = new Set<string>();
+const activeTranslations = new Map<string, AbortController>();
 
 const VLLM_BASE_URL = env.VLLM_BASE_URL || 'http://10.125.208.42:9241';
 const VLLM_MODEL = env.VLLM_MODEL || '';
@@ -88,8 +88,11 @@ async function getModel(): Promise<string> {
 	return cachedModel;
 }
 
-async function callLLM(prompt: string, text: string): Promise<string> {
+async function callLLM(prompt: string, text: string, signal?: AbortSignal): Promise<string> {
 	const model = await getModel();
+
+	const signals = [AbortSignal.timeout(VLLM_TIMEOUT_MS)];
+	if (signal) signals.push(signal);
 
 	const response = await fetch(`${VLLM_BASE_URL}/v1/chat/completions`, {
 		method: 'POST',
@@ -103,7 +106,7 @@ async function callLLM(prompt: string, text: string): Promise<string> {
 			temperature: 0.1,
 			max_tokens: 2048
 		}),
-		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
+		signal: AbortSignal.any(signals)
 	});
 
 	if (!response.ok) {
@@ -133,18 +136,18 @@ function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown
 		].join('\n');
 	}
 
-	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Output ONLY the translation, nothing else.${glossaryText}`;
+	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Do not add a trailing period/dot that was not in the original. Output ONLY the translation, nothing else.${glossaryText}`;
 }
 
-async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false, glossaryText = ''): Promise<string> {
+async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false, glossaryText = '', signal?: AbortSignal): Promise<string> {
 	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown, glossaryText);
-	return callLLM(prompt, text);
+	return callLLM(prompt, text, signal);
 }
 
-async function translateBatch(texts: string[], sourceLang: string, targetLang: string, glossaryText = ''): Promise<string[]> {
+async function translateBatch(texts: string[], sourceLang: string, targetLang: string, glossaryText = '', signal?: AbortSignal): Promise<string[]> {
 	const results: string[] = [];
 	for (let i = 0; i < texts.length; i++) {
-		results.push(await translateSingle(texts[i], sourceLang, targetLang, false, glossaryText));
+		results.push(await translateSingle(texts[i], sourceLang, targetLang, false, glossaryText, signal));
 	}
 	return results;
 }
@@ -201,13 +204,13 @@ function chunkMarkdown(text: string, maxChunk: number): string[] {
 	return chunks;
 }
 
-async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string, glossaryText = ''): Promise<string> {
+async function translateMarkdownContent(markdown: string, sourceLang: string, targetLang: string, glossaryText = '', signal?: AbortSignal): Promise<string> {
 	const { text: protectedText, restore } = protectMarkdown(markdown);
 	const chunks = chunkMarkdown(protectedText, 1500);
 
 	const translatedChunks: string[] = [];
 	for (const chunk of chunks) {
-		const translated = await translateSingle(chunk, sourceLang, targetLang, true, glossaryText);
+		const translated = await translateSingle(chunk, sourceLang, targetLang, true, glossaryText, signal);
 		translatedChunks.push(translated);
 	}
 
@@ -352,8 +355,17 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 	if (bookLang === targetLocale) return null;
 
 	const key = `${bookId}:${targetLocale}`;
-	if (preTranslateInProgress.has(key)) return null;
-	preTranslateInProgress.add(key);
+
+	// Cancel any previous translation for this book (both locales)
+	for (const [k, ctrl] of activeTranslations) {
+		if (k.startsWith(`${bookId}:`)) {
+			ctrl.abort();
+		}
+	}
+
+	const abortController = new AbortController();
+	activeTranslations.set(key, abortController);
+	const signal = abortController.signal;
 
 	const translationLog = await createTranslationLog(bookId, targetLocale, triggeredBy);
 	const logId = translationLog.id;
@@ -398,13 +410,13 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 
 			if (titles.length > 0) {
 				await log(`Translating ${titles.length} navigation titles...`);
-				const translatedTitles = await translateBatch(titles, bookLang, targetLocale, glossaryText);
+				const translatedTitles = await translateBatch(titles, bookLang, targetLocale, glossaryText, signal);
 				let idx = 0;
 				function applyTitles(items: typeof navigation): typeof navigation {
 					return items.map((item) => {
 						const newItem = { ...item };
 						if (item.title && item.title !== '__INTRODUCTION__' && idx < translatedTitles.length) {
-							newItem.title = translatedTitles[idx].trim();
+							newItem.title = translatedTitles[idx].trim().replace(/\.$/, '');
 							idx++;
 						}
 						if (item.children) newItem.children = applyTitles(item.children);
@@ -431,7 +443,7 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 				const bookJson = JSON.parse(await fs.readFile(bookJsonPath, 'utf-8'));
 				if (bookJson.title) {
 					await log(`Translating book title: "${bookJson.title}"`);
-					const translated = await translateSingle(bookJson.title, bookLang, targetLocale, false, glossaryText);
+					const translated = (await translateSingle(bookJson.title, bookLang, targetLocale, false, glossaryText, signal)).replace(/\.$/, '');
 					await fs.mkdir(path.dirname(titleCachePath), { recursive: true });
 					await fs.writeFile(titleCachePath, translated, 'utf-8');
 					if (bookJsonHash) await saveHash(bookId, targetLocale, '_title.txt', bookJsonHash);
@@ -460,14 +472,16 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 
 				if (!await pageNeedsTranslation(bookId, targetLocale, filePath, currentHash)) {
 					skippedCount++;
+					await log(`[${completedCount + skippedCount}/${filePaths.length}] ${filePath} (unchanged)`);
 					continue;
 				}
 
 				try {
+					if (signal.aborted) throw new Error('Translation cancelled');
 					const fullPath = path.join(bookRoot, filePath);
 					let markdown = await fs.readFile(fullPath, 'utf-8');
 					markdown = await processMarkdown(bookId, markdown, { bookRoot });
-					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale, glossaryText);
+					const translated = await translateMarkdownContent(markdown, bookLang, targetLocale, glossaryText, signal);
 
 					const cachePath = getTranslationCachePath(bookId, targetLocale, filePath);
 					await fs.mkdir(path.dirname(cachePath), { recursive: true });
@@ -513,7 +527,20 @@ export async function preTranslateBook(bookId: string, targetLocale: 'ko' | 'en'
 		try { await translationEvents.emitStatus(logId, 'failed'); } catch { /* ignore */ }
 		throw err;
 	} finally {
-		preTranslateInProgress.delete(key);
+		if (activeTranslations.get(key) === abortController) {
+			activeTranslations.delete(key);
+		}
+	}
+}
+
+/**
+ * Cancel all active translations for a book.
+ */
+export function cancelBookTranslations(bookId: string): void {
+	for (const [k, ctrl] of activeTranslations) {
+		if (k.startsWith(`${bookId}:`)) {
+			ctrl.abort();
+		}
 	}
 }
 

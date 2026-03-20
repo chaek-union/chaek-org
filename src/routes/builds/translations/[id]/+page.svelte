@@ -24,7 +24,12 @@
 				status = logEvent.data;
 				logs = [...logs, `[Status] ${logEvent.data}`];
 			} else if (logEvent.type === 'complete') {
-				logs = [...logs, '[Translation completed]'];
+				if (status === 'running') {
+					fetch(`/api/translations/${data.logId}/status`)
+						.then(r => r.json())
+						.then(d => { if (d.status) status = d.status; })
+						.catch(() => {});
+				}
 				if (eventSource) {
 					eventSource.close();
 					eventSource = null;

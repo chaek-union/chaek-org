@@ -2,7 +2,7 @@
 	import { t, locale } from '$lib/i18n';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
 
-	let { data, fullWidth = false }: { data: any; fullWidth?: boolean } = $props();
+	let { data, fullWidth = false, bookId = '' }: { data: any; fullWidth?: boolean; bookId?: string } = $props();
 
 	const session = $derived(data?.session);
 	const isChaekMember = $derived((session?.user as any)?.isChaekMember);
@@ -19,6 +19,16 @@
 		<div class="navbar-actions">
 			{#if isChaekMember}
 				<a href="/builds" class="nav-link">{$t('nav.builds')}</a>
+			{/if}
+			{#if bookId}
+				<a
+					href="https://github.com/chaek-union/{bookId}/issues"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="nav-link report-link"
+				>
+					{$t('nav.reportIssue')}
+				</a>
 			{/if}
 			<a
 				href="https://github.com/chaek-union"
