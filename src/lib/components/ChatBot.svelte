@@ -15,6 +15,23 @@
 	let messages = $derived($chatbotMessages[bookId] || []);
 	let isLoading = $state(false);
 	let streamingContent = $state('');
+	let statusText = $state('');
+	let messagesEl = $state<HTMLDivElement | undefined>(undefined);
+	let stickToBottom = true;
+
+	// Follow the answer as it streams in, unless the user scrolled up to read.
+	$effect(() => {
+		streamingContent;
+		statusText;
+		messages.length;
+		if (stickToBottom && messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
+	});
+
+	function handleScroll() {
+		if (!messagesEl) return;
+		const distance = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+		stickToBottom = distance < 40;
+	}
 
 	async function sendMessage(content: string) {
 		console.log('[ChatBot] sendMessage called, bookId:', bookId);
@@ -28,6 +45,8 @@
 		}));
 		isLoading = true;
 		streamingContent = '';
+		statusText = '';
+		stickToBottom = true;
 
 		try {
 			const response = await fetch('/api/chat', {
@@ -48,13 +67,17 @@
 
 			const decoder = new TextDecoder();
 			let accumulated = '';
+			// SSE events can be split across network chunks, so keep the
+			// unterminated remainder around until its newline arrives.
+			let buffer = '';
 
 			while (true) {
 				const { done, value } = await reader.read();
 				if (done) break;
 
-				const chunk = decoder.decode(value, { stream: true });
-				const lines = chunk.split('\n');
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split('\n');
+				buffer = lines.pop() ?? '';
 
 				for (const line of lines) {
 					const trimmed = line.trim();
@@ -65,9 +88,21 @@
 
 					try {
 						const parsed = JSON.parse(data);
+						if (parsed.reset) {
+							// The streamed text was a preamble to a tool call, not an answer.
+							accumulated = '';
+							streamingContent = '';
+						}
+						if (parsed.status) {
+							statusText =
+								parsed.status === 'reading'
+									? $t('chatbot.statusReading', { path: parsed.path ?? '' })
+									: $t('chatbot.statusThinking');
+						}
 						if (parsed.content) {
 							accumulated += parsed.content;
 							streamingContent = accumulated;
+							statusText = '';
 						}
 					} catch {
 						// Skip malformed
@@ -95,6 +130,7 @@
 		} finally {
 			isLoading = false;
 			streamingContent = '';
+			statusText = '';
 		}
 	}
 
@@ -133,7 +169,7 @@
 			</div>
 		</div>
 
-		<div class="chatbot-messages">
+		<div class="chatbot-messages" bind:this={messagesEl} onscroll={handleScroll}>
 			{#if messages.length === 0 && !isLoading}
 				<div class="chatbot-empty">
 					<p>{$t('chatbot.welcome')}</p>
@@ -148,6 +184,9 @@
 						<ChatMessage role="assistant" content={streamingContent} />
 					{:else}
 						<ChatMessage role="assistant" content="" isLoading={true} />
+					{/if}
+					{#if statusText}
+						<div class="chatbot-status">{statusText}</div>
 					{/if}
 				{/if}
 			{/if}
@@ -239,6 +278,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.75rem;
+	}
+
+	.chatbot-status {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+		padding-left: 0.2rem;
 	}
 
 	.chatbot-empty {

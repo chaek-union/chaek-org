@@ -8,6 +8,11 @@ export interface LLMMessage {
 export interface LLMOptions {
 	maxTokens?: number;
 	temperature?: number;
+	signal?: AbortSignal;
+}
+
+export interface LLMStreamChunk {
+	choices?: Array<{ delta?: { content?: string } }>;
 }
 
 const VLLM_TIMEOUT_MS = 120_000;
@@ -34,97 +39,105 @@ async function getModel(): Promise<string> {
 	return cachedModel;
 }
 
-export async function callLLM(
-	messages: LLMMessage[],
-	options: LLMOptions = {}
-): Promise<string> {
-	const model = await getModel();
-	const baseUrl = getBaseUrl();
+function isModelNotFoundError(status: number, errorText: string): boolean {
+	if (status === 404) return true;
+	const lower = errorText.toLowerCase();
+	return lower.includes('model') &&
+		(lower.includes('not found') ||
+			lower.includes('does not exist') ||
+			lower.includes('not available') ||
+			lower.includes('unknown'));
+}
 
-	const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			model,
-			messages: messages.map((m) => ({ role: m.role, content: m.content })),
-			max_tokens: options.maxTokens ?? 2048,
-			temperature: options.temperature ?? 0.7,
-			stream: false
-		}),
-		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
-	});
+async function chatRequest(
+	messages: LLMMessage[],
+	options: LLMOptions,
+	stream: boolean
+): Promise<Response> {
+	const signals: AbortSignal[] = [AbortSignal.timeout(VLLM_TIMEOUT_MS)];
+	if (options.signal) signals.push(options.signal);
+
+	const send = async (model: string) =>
+		fetch(`${getBaseUrl()}/v1/chat/completions`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				model,
+				messages,
+				max_tokens: options.maxTokens ?? 2048,
+				temperature: options.temperature ?? 0.7,
+				stream
+			}),
+			signal: AbortSignal.any(signals)
+		});
+
+	let response = await send(await getModel());
 
 	if (response.status === 429) {
 		throw new Error('rate-limited');
 	}
 	if (!response.ok) {
 		const errorText = await response.text();
-		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
+		if (isModelNotFoundError(response.status, errorText)) {
+			// Server's model has changed since we last cached. Re-discover and retry once.
+			cachedModel = null;
+			response = await send(await getModel());
+			if (!response.ok) {
+				throw new Error(`vLLM API error ${response.status}: ${await response.text()}`);
+			}
+		} else {
+			throw new Error(`vLLM API error ${response.status}: ${errorText}`);
+		}
 	}
 
+	return response;
+}
+
+export async function callLLM(
+	messages: LLMMessage[],
+	options: LLMOptions = {}
+): Promise<string> {
+	const response = await chatRequest(messages, options, false);
 	const data = await response.json();
-	return data.choices[0].message.content;
+	const content = data?.choices?.[0]?.message?.content;
+	if (typeof content !== 'string') throw new Error('Invalid response from LLM');
+	return content.trim();
 }
 
 export async function callLLMStream(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
-) {
-	const model = await getModel();
-	const baseUrl = getBaseUrl();
-
-	const response = await fetch(`${baseUrl}/v1/chat/completions`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			model,
-			messages: messages.map((m) => ({ role: m.role, content: m.content })),
-			max_tokens: options.maxTokens ?? 2048,
-			temperature: options.temperature ?? 0.7,
-			stream: true
-		}),
-		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
-	});
-
-	if (response.status === 429) {
-		throw new Error('rate-limited');
-	}
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
-	}
-
-	return parseSSEStream(response);
+): Promise<AsyncIterable<LLMStreamChunk>> {
+	const response = await chatRequest(messages, options, true);
+	if (!response.body) throw new Error('No response body from LLM');
+	return parseSSEStream(response.body);
 }
 
-async function* parseSSEStream(response: Response) {
-	const reader = response.body!.getReader();
+async function* parseSSEStream(
+	body: ReadableStream<Uint8Array>
+): AsyncGenerator<LLMStreamChunk> {
+	const reader = body.getReader();
 	const decoder = new TextDecoder();
 	let buffer = '';
 
-	try {
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
 
-			buffer += decoder.decode(value, { stream: true });
-			const lines = buffer.split('\n');
-			buffer = lines.pop() || '';
+		const lines = buffer.split('\n');
+		buffer = lines.pop() || '';
 
-			for (const line of lines) {
-				const trimmed = line.trim();
-				if (!trimmed || !trimmed.startsWith('data: ')) continue;
-				const data = trimmed.slice(6);
-				if (data === '[DONE]') return;
-
-				try {
-					yield JSON.parse(data);
-				} catch {
-					// skip malformed chunks
-				}
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed.startsWith('data:')) continue;
+			const payload = trimmed.slice(5).trim();
+			if (payload === '[DONE]') return;
+			try {
+				yield JSON.parse(payload) as LLMStreamChunk;
+			} catch {
+				/* skip malformed chunk */
 			}
 		}
-	} finally {
-		reader.releaseLock();
 	}
 }

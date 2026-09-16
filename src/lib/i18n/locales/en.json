@@ -86,6 +86,8 @@
 		"placeholder": "Type your question...",
 		"send": "Send",
 		"errorGeneric": "Sorry, I encountered an error. Please try again.",
+		"statusThinking": "Thinking…",
+		"statusReading": "Reading {path}…",
 		"errorRateLimit": "The AI model is temporarily rate-limited. Please try again in a moment."
 	},
 	"readerFooter": {
