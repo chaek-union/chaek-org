@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { getBookMetadata } from "$lib/server/books";
+import { getBookMetadata, safeJoin } from "$lib/server/books";
 import { parseSummary, getBookRoot } from "$lib/server/summary-parser";
 import { processMarkdown } from "$lib/server/markdown-processor";
 import { translatePage, translateNavigation, translateText } from "$lib/server/translate";
@@ -34,7 +34,10 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
         pagePath = pagePath + ".md";
     }
 
-    const filePath = path.join(bookRoot, pagePath);
+    const filePath = safeJoin(bookRoot, pagePath);
+    if (!filePath) {
+        throw error(404, "Page not found");
+    }
 
     let htmlContent = "";
     let isTranslated = false;

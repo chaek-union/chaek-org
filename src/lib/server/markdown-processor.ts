@@ -1,6 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
-import { BOOKS_DIR } from "./books";
+import { BOOKS_DIR, isWithin } from "./books";
 
 interface BookJson {
     title?: string;
@@ -76,11 +76,13 @@ function escapeBackslashesForPdf(content: string): string {
 
 /**
  * Process GitBook-style {% include "./path" %} directives.
- * Resolves file content relative to the book root.
+ * Resolves file content relative to the book root; files outside the
+ * book repository (bookDir) are never included.
  */
 async function processIncludes(
     content: string,
     bookRoot: string,
+    bookDir: string,
 ): Promise<string> {
     const includePattern = /\{%\s*include\s+["']([^"']+)["']\s*%\}/g;
     const matches = [...content.matchAll(includePattern)];
@@ -91,6 +93,7 @@ async function processIncludes(
         const [fullMatch, includePath] = match;
         try {
             const filePath = path.join(bookRoot, includePath);
+            if (!isWithin(bookDir, filePath)) continue;
             const fileContent = await fs.readFile(filePath, "utf-8");
             result = result.replace(fullMatch, fileContent.trimEnd());
         } catch {
@@ -116,7 +119,11 @@ export async function processMarkdown(
 
     // Process includes if bookRoot is provided
     if (options?.bookRoot) {
-        processed = await processIncludes(processed, options.bookRoot);
+        processed = await processIncludes(
+            processed,
+            options.bookRoot,
+            path.join(BOOKS_DIR, bookId),
+        );
     }
 
     // Process anchors only if not skipped (skip for PDF generation)

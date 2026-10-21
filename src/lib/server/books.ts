@@ -12,6 +12,34 @@ export interface Book {
 export const BOOKS_DIR = path.join(process.cwd(), "books");
 export const STATIC_BOOKS_DIR = path.join(process.cwd(), "static", "books");
 
+const BOOK_ID_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+
+/**
+ * Check that a book ID is a plain directory name (no separators, no "..")
+ */
+export function isValidBookId(bookId: unknown): bookId is string {
+    return typeof bookId === "string" && BOOK_ID_PATTERN.test(bookId);
+}
+
+/**
+ * Check whether target resolves to base itself or a path inside it
+ */
+export function isWithin(base: string, target: string): boolean {
+    const rel = path.relative(path.resolve(base), path.resolve(target));
+    return (
+        rel === "" ||
+        (rel !== ".." && !rel.startsWith(".." + path.sep) && !path.isAbsolute(rel))
+    );
+}
+
+/**
+ * Join relPath onto base, returning null if the result escapes base
+ */
+export function safeJoin(base: string, relPath: string): string | null {
+    const joined = path.join(base, relPath);
+    return isWithin(base, joined) ? joined : null;
+}
+
 interface BookJson {
     title?: string;
     root?: string;
@@ -115,6 +143,7 @@ export async function getBooks(): Promise<Book[]> {
  * Check if a book exists
  */
 export async function bookExists(bookId: string): Promise<boolean> {
+    if (!isValidBookId(bookId)) return false;
     try {
         const bookPath = path.join(BOOKS_DIR, bookId);
         await fs.access(bookPath);
@@ -128,6 +157,7 @@ export async function bookExists(bookId: string): Promise<boolean> {
  * Get book metadata
  */
 export async function getBookMetadata(bookId: string): Promise<Book | null> {
+    if (!isValidBookId(bookId)) return null;
     try {
         const bookPath = path.join(BOOKS_DIR, bookId);
         const stats = await fs.stat(bookPath);

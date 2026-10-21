@@ -711,11 +711,3 @@ export async function processBook(
         };
     }
 }
-
-/**
- * Extract repository name from GitHub URL
- */
-export function extractRepoName(repoUrl: string): string {
-    const match = repoUrl.match(/github\.com\/[^\/]+\/([^\/\.]+)/);
-    return match ? match[1] : "";
-}

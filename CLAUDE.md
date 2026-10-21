@@ -112,6 +112,7 @@
 - `GITHUB_ID` - GitHub OAuth App Client ID
 - `GITHUB_SECRET` - GitHub OAuth App Client Secret
 - `AUTH_SECRET` - Auth.js 비밀 키 (openssl rand -base64 32로 생성)
+- `GITHUB_WEBHOOK_SECRET` - GitHub 조직 webhook의 Secret 값
 
 ## 데이터베이스 스키마
 
@@ -150,7 +151,8 @@
 
 ### Webhook 보안
 - `chaek-union` 조직 외의 저장소는 자동으로 거부됨
-- Secret 검증은 사용하지 않음 (조직 검증만 수행)
+- `X-Hub-Signature-256` 서명 검증 필수 (`GITHUB_WEBHOOK_SECRET`, 미설정 시 모든 요청 거부)
+- payload의 `clone_url`은 신뢰하지 않음 — `https://github.com/chaek-union/{name}.git`으로 직접 구성
 - 모든 push 이벤트는 로그에 기록됨
 
 ### 빌드 프로세스

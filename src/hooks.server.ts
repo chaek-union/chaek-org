@@ -140,50 +140,52 @@ const staticFileHandle: Handle = async ({ event, resolve }) => {
 		if (match) {
 			const [, bookId, assetPath] = match;
 
-			// Import getBookRoot dynamically
+			// Import helpers dynamically
 			const { getBookRoot } = await import('$lib/server/summary-parser');
-			const bookRoot = await getBookRoot(bookId);
+			const { isValidBookId, safeJoin } = await import('$lib/server/books');
+			const bookRoot = isValidBookId(bookId) ? await getBookRoot(bookId) : null;
+			const filePath = bookRoot ? safeJoin(bookRoot, assetPath) : null;
 
-			const filePath = path.join(bookRoot, assetPath);
+			if (filePath) {
+				try {
+					// Check if file exists
+					const stats = await fs.promises.stat(filePath);
 
-			try {
-				// Check if file exists
-				const stats = await fs.promises.stat(filePath);
+					if (stats.isFile()) {
+						const content = await fs.promises.readFile(filePath);
 
-				if (stats.isFile()) {
-					const content = await fs.promises.readFile(filePath);
+						// Determine content type based on file extension
+						const ext = path.extname(filePath).toLowerCase();
+						const contentTypes: Record<string, string> = {
+							'.html': 'text/html',
+							'.css': 'text/css',
+							'.js': 'application/javascript',
+							'.json': 'application/json',
+							'.png': 'image/png',
+							'.jpg': 'image/jpeg',
+							'.jpeg': 'image/jpeg',
+							'.gif': 'image/gif',
+							'.svg': 'image/svg+xml',
+							'.ico': 'image/x-icon',
+							'.woff': 'font/woff',
+							'.woff2': 'font/woff2',
+							'.ttf': 'font/ttf',
+							'.eot': 'application/vnd.ms-fontobject',
+							'.webp': 'image/webp'
+						};
 
-					// Determine content type based on file extension
-					const ext = path.extname(filePath).toLowerCase();
-					const contentTypes: Record<string, string> = {
-						'.html': 'text/html',
-						'.css': 'text/css',
-						'.js': 'application/javascript',
-						'.json': 'application/json',
-						'.png': 'image/png',
-						'.jpg': 'image/jpeg',
-						'.jpeg': 'image/jpeg',
-						'.gif': 'image/gif',
-						'.svg': 'image/svg+xml',
-						'.ico': 'image/x-icon',
-						'.woff': 'font/woff',
-						'.woff2': 'font/woff2',
-						'.ttf': 'font/ttf',
-						'.eot': 'application/vnd.ms-fontobject',
-						'.webp': 'image/webp'
-					};
+						const contentType = contentTypes[ext] || 'application/octet-stream';
 
-					const contentType = contentTypes[ext] || 'application/octet-stream';
-
-					return new Response(content, {
-						headers: {
-							'Content-Type': contentType,
-							'Cache-Control': 'public, max-age=3600'
-						}
-					});
+						return new Response(content, {
+							headers: {
+								'Content-Type': contentType,
+								'Cache-Control': 'public, max-age=3600'
+							}
+						});
+					}
+				} catch (error) {
+					// File not found or error reading, continue to default handler
 				}
-			} catch (error) {
-				// File not found or error reading, continue to default handler
 			}
 		}
 	}

@@ -1,12 +1,44 @@
 import type { RequestHandler } from './$types';
 import { parseSummary, getBookRoot, type NavItem } from '$lib/server/summary-parser';
 import { callLLM, callLLMStream, type LLMMessage } from '$lib/server/llm';
+import { bookExists, safeJoin } from '$lib/server/books';
 import { readFile } from 'fs/promises';
-import { join } from 'path';
+
+// Limits for this unauthenticated endpoint
+const MAX_MESSAGES = 20;
+const MAX_MESSAGE_LENGTH = 4000;
+
+function jsonError(message: string, status: number) {
+	return new Response(JSON.stringify({ error: message }), {
+		status,
+		headers: { 'Content-Type': 'application/json' }
+	});
+}
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
-		const { bookId, messages } = await request.json();
+		const body = await request.json();
+		const bookId = body?.bookId;
+
+		if (!(await bookExists(bookId))) {
+			return jsonError('Book not found', 404);
+		}
+		if (!Array.isArray(body.messages)) {
+			return jsonError('Invalid messages', 400);
+		}
+
+		// Only keep user/assistant turns, capped in count and length
+		const messages: LLMMessage[] = body.messages
+			.filter(
+				(m: any) =>
+					(m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string'
+			)
+			.slice(-MAX_MESSAGES)
+			.map((m: any) => ({ role: m.role, content: m.content.slice(0, MAX_MESSAGE_LENGTH) }));
+
+		if (messages.length === 0 || messages[messages.length - 1].role !== 'user') {
+			return jsonError('Invalid messages', 400);
+		}
 
 		// Parse navigation to get all sections
 		const navigation = await parseSummary(bookId);
@@ -44,13 +76,7 @@ Instructions:
 6. Use markdown formatting for your responses (bold, lists, code blocks, etc.)`;
 
 		// Call LLM with streaming
-		const llmMessages: LLMMessage[] = [
-			{ role: 'system', content: systemPrompt },
-			...messages.map((m: any) => ({
-				role: m.role as 'user' | 'assistant',
-				content: m.content
-			}))
-		];
+		const llmMessages: LLMMessage[] = [{ role: 'system', content: systemPrompt }, ...messages];
 
 		const llmStream = await callLLMStream(llmMessages);
 		const encoder = new TextEncoder();
@@ -85,11 +111,9 @@ Instructions:
 	} catch (error) {
 		console.error('Chat API error:', error);
 		const message = error instanceof Error ? error.message : String(error);
-		const status = message === 'rate-limited' ? 429 : 500;
-		return new Response(JSON.stringify({ error: message }), {
-			status,
-			headers: { 'Content-Type': 'application/json' }
-		});
+		return message === 'rate-limited'
+			? jsonError('rate-limited', 429)
+			: jsonError('Internal server error', 500);
 	}
 };
 
@@ -202,7 +226,8 @@ Select the 2-3 most relevant section numbers (just the numbers, comma-separated)
 		for (const idx of selectedSectionIndices) {
 			const section = sectionsInChapters[idx];
 			try {
-				const filePath = join(bookRoot, section.path);
+				const filePath = safeJoin(bookRoot, section.path);
+				if (!filePath) continue;
 				const content = await readFile(filePath, 'utf-8');
 				relevantSections.push({
 					title: `${section.chapterTitle} > ${section.title}`,
@@ -218,9 +243,10 @@ Select the 2-3 most relevant section numbers (just the numbers, comma-separated)
 	} catch (error) {
 		console.error('Error in LLM section selection:', error);
 		const fallback = navigation[0];
-		if (fallback?.path) {
+		const fallbackPath = fallback?.path ? safeJoin(bookRoot, fallback.path) : null;
+		if (fallback?.path && fallbackPath) {
 			try {
-				const content = await readFile(join(bookRoot, fallback.path), 'utf-8');
+				const content = await readFile(fallbackPath, 'utf-8');
 				return [{
 					title: fallback.title,
 					path: fallback.path,

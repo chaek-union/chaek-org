@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { BOOKS_DIR } from './books';
+import { BOOKS_DIR, isValidBookId, safeJoin } from './books';
 
 export interface NavItem {
 	title: string;
@@ -18,15 +18,20 @@ interface BookJson {
  * Get book root directory from book.json
  */
 export async function getBookRoot(bookId: string): Promise<string> {
-	const bookJsonPath = path.join(BOOKS_DIR, bookId, 'book.json');
+	if (!isValidBookId(bookId)) {
+		throw new Error(`Invalid book ID: ${bookId}`);
+	}
+	const bookDir = path.join(BOOKS_DIR, bookId);
+	const bookJsonPath = path.join(bookDir, 'book.json');
 	try {
 		const content = await fs.readFile(bookJsonPath, 'utf-8');
 		const bookJson: BookJson = JSON.parse(content);
 		const root = bookJson.root || '.';
-		return path.join(BOOKS_DIR, bookId, root);
+		// Ignore a root that points outside the book repository
+		return safeJoin(bookDir, root) ?? bookDir;
 	} catch {
 		// If book.json doesn't exist or can't be parsed, default to book root
-		return path.join(BOOKS_DIR, bookId);
+		return bookDir;
 	}
 }
 
