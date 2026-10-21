@@ -28,3 +28,6 @@ vite.config.ts.timestamp-*
 
 # Translation cache
 /data/
+
+# oh-my-claudecode local state
+.omc/
