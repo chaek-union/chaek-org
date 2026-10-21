@@ -1,0 +1,20 @@
+FROM node:20-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    git \
+    pandoc \
+    texlive-full \
+    fontconfig \
+    librsvg2-bin \
+    curl \
+    ca-certificates \
+    imagemagick \
+    gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY fonts /usr/share/fonts/truetype/kopub
+RUN fc-cache -fv
+
+RUN corepack enable && corepack prepare pnpm@latest --activate

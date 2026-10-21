@@ -32,8 +32,7 @@ services:
       - GITHUB_SECRET=${GITHUB_SECRET}
       - AUTH_SECRET=${AUTH_SECRET}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
-      - VLLM_BASE_URL=${VLLM_BASE_URL}
-      - VLLM_MODEL=${VLLM_MODEL}
+      - LLM_BASE_URL=${LLM_BASE_URL}
     volumes:
       - ./books:/app/books
       - ./static/books:/app/static/books

@@ -9,33 +9,35 @@ export interface LLMOptions {
 	maxTokens?: number;
 	temperature?: number;
 	signal?: AbortSignal;
+	/**
+	 * Reasoning budget. 'off' skips the <think> block entirely, which is much
+	 * faster and is what grounded, retrieval-backed answers want; 'xhigh' suits
+	 * open-ended work like translation. 'medium' is deliberately not offered:
+	 * it costs noticeably more time than either neighbour for no clear gain.
+	 */
+	thinking?: 'off' | 'low' | 'xhigh';
 }
 
 export interface LLMStreamChunk {
 	choices?: Array<{ delta?: { content?: string } }>;
 }
 
-const VLLM_TIMEOUT_MS = 120_000;
-
-function getBaseUrl(): string {
-	return env.VLLM_BASE_URL || 'http://10.125.208.42:9241';
-}
+const LLM_BASE_URL = env.LLM_BASE_URL || 'http://qwen-llm:8080';
+const LLM_TIMEOUT_MS = 120_000;
 
 let cachedModel: string | null = null;
 
-async function resolveModel(): Promise<string> {
-	if (env.VLLM_MODEL) return env.VLLM_MODEL;
-
-	const response = await fetch(`${getBaseUrl()}/v1/models`);
+async function fetchFirstModel(): Promise<string> {
+	const response = await fetch(`${LLM_BASE_URL}/v1/models`);
 	if (!response.ok) throw new Error(`Failed to list models: ${response.status}`);
 	const data = await response.json();
 	const id = data?.data?.[0]?.id;
-	if (!id) throw new Error('No models available on vLLM server');
+	if (!id) throw new Error('No models available on LLM server');
 	return id;
 }
 
 async function getModel(): Promise<string> {
-	if (!cachedModel) cachedModel = await resolveModel();
+	if (!cachedModel) cachedModel = await fetchFirstModel();
 	return cachedModel;
 }
 
@@ -54,19 +56,23 @@ async function chatRequest(
 	options: LLMOptions,
 	stream: boolean
 ): Promise<Response> {
-	const signals: AbortSignal[] = [AbortSignal.timeout(VLLM_TIMEOUT_MS)];
+	const signals: AbortSignal[] = [AbortSignal.timeout(LLM_TIMEOUT_MS)];
 	if (options.signal) signals.push(options.signal);
 
 	const send = async (model: string) =>
-		fetch(`${getBaseUrl()}/v1/chat/completions`, {
+		fetch(`${LLM_BASE_URL}/v1/chat/completions`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				model,
 				messages,
-				max_tokens: options.maxTokens ?? 2048,
-				temperature: options.temperature ?? 0.7,
-				stream
+				temperature: options.temperature,
+				max_tokens: options.maxTokens,
+				stream,
+				chat_template_kwargs:
+					options.thinking === 'off'
+						? { enable_thinking: false }
+						: { enable_thinking: true, reasoning_effort: options.thinking ?? 'xhigh' }
 			}),
 			signal: AbortSignal.any(signals)
 		});
@@ -83,10 +89,10 @@ async function chatRequest(
 			cachedModel = null;
 			response = await send(await getModel());
 			if (!response.ok) {
-				throw new Error(`vLLM API error ${response.status}: ${await response.text()}`);
+				throw new Error(`LLM API error ${response.status}: ${await response.text()}`);
 			}
 		} else {
-			throw new Error(`vLLM API error ${response.status}: ${errorText}`);
+			throw new Error(`LLM API error ${response.status}: ${errorText}`);
 		}
 	}
 

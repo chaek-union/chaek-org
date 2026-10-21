@@ -8,7 +8,7 @@
 		isLoading?: boolean;
 	}>();
 
-	let md: any = null;
+	let md = $state<any>(null);
 
 	onMount(async () => {
 		const MarkdownIt = (await import('markdown-it')).default;
@@ -19,11 +19,11 @@
 		});
 	});
 
-	const renderedHtml = $derived(() => {
-		if (!content || role === 'user') return content;
-		if (!md) return content;
-		return md.render(content);
-	});
+	const renderedHtml = $derived(
+		!content || role === 'user' ? content :
+		!md ? content :
+		md.render(content)
+	);
 
 	function handleClick(e: MouseEvent) {
 		const target = e.target as HTMLElement;
@@ -57,7 +57,7 @@
 			{content}
 		{:else}
 			<div class="markdown-body">
-				{@html renderedHtml()}
+				{@html renderedHtml}
 			</div>
 		{/if}
 	</div>

@@ -1,4 +1,3 @@
-import { env } from '$env/dynamic/private';
 import fs from 'fs/promises';
 import path from 'path';
 import { simpleGit } from 'simple-git';
@@ -8,15 +7,12 @@ import { createTranslationLog, updateTranslationLog } from './db/translation-log
 import { translationEvents } from './translation-events';
 import { BOOKS_DIR } from './books';
 import { loadBookGlossary, buildGlossaryPrompt, invalidateGlossaryCache } from './glossary';
+import { callLLM } from './llm';
 
 const CACHE_DIR = path.join(process.cwd(), 'data', 'book-translations');
 
 const bookLanguageCache = new Map<string, 'ko' | 'en'>();
 const activeTranslations = new Map<string, AbortController>();
-
-const VLLM_BASE_URL = env.VLLM_BASE_URL || 'http://10.125.208.42:9241';
-const VLLM_MODEL = env.VLLM_MODEL || '';
-const VLLM_TIMEOUT_MS = 120_000;
 
 const LANG_NAMES: Record<string, string> = { ko: 'Korean', en: 'English' };
 
@@ -68,55 +64,7 @@ export async function detectBookLanguage(bookId: string): Promise<'ko' | 'en'> {
 	return lang;
 }
 
-// ── vLLM API ──────────────────────────────────────────────────────────────
-
-async function resolveModel(): Promise<string> {
-	if (VLLM_MODEL) return VLLM_MODEL;
-
-	const response = await fetch(`${VLLM_BASE_URL}/v1/models`);
-	if (!response.ok) throw new Error(`Failed to list models: ${response.status}`);
-	const data = await response.json();
-	const id = data?.data?.[0]?.id;
-	if (!id) throw new Error('No models available on vLLM server');
-	return id;
-}
-
-let cachedModel: string | null = null;
-
-async function getModel(): Promise<string> {
-	if (!cachedModel) cachedModel = await resolveModel();
-	return cachedModel;
-}
-
-async function callLLM(prompt: string, text: string, signal?: AbortSignal): Promise<string> {
-	const model = await getModel();
-
-	const signals = [AbortSignal.timeout(VLLM_TIMEOUT_MS)];
-	if (signal) signals.push(signal);
-
-	const response = await fetch(`${VLLM_BASE_URL}/v1/chat/completions`, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			model,
-			messages: [
-				{ role: 'system', content: prompt },
-				{ role: 'user', content: text }
-			],
-			temperature: 0.1,
-			max_tokens: 2048
-		}),
-		signal: AbortSignal.any(signals)
-	});
-
-	if (!response.ok) {
-		const errorText = await response.text();
-		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
-	}
-
-	const data = await response.json();
-	return data.choices[0].message.content.trim();
-}
+// ── Translation prompt ─────────────────────────────────────────────────────
 
 function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown: boolean, glossaryText = ''): string {
 	const src = LANG_NAMES[sourceLang] || sourceLang;
@@ -141,7 +89,13 @@ function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown
 
 async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false, glossaryText = '', signal?: AbortSignal): Promise<string> {
 	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown, glossaryText);
-	return callLLM(prompt, text, signal);
+	return callLLM(
+		[
+			{ role: 'system', content: prompt },
+			{ role: 'user', content: text }
+		],
+		{ temperature: 0.1, maxTokens: 2048, signal }
+	);
 }
 
 async function translateBatch(texts: string[], sourceLang: string, targetLang: string, glossaryText = '', signal?: AbortSignal): Promise<string[]> {
