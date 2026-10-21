@@ -13,6 +13,7 @@ import {
 import { buildEvents } from "./build-events.js";
 import { processMarkdown } from "./markdown-processor.js";
 import { invalidateBookTranslations } from "./translate.js";
+import { buildCoverThumbnails } from "./covers.js";
 
 const BOOKS_DIR = path.join(process.cwd(), "books");
 const STATIC_BOOKS_DIR = path.join(process.cwd(), "static", "books");
@@ -649,6 +650,19 @@ export async function processBook(
 
         // Emit start status
         await buildEvents.emitStatus(buildId, "running");
+
+        // Regenerate card-sized cover thumbnails; a failure here doesn't fail the build
+        try {
+            const thumbs = await buildCoverThumbnails(repoName);
+            await buildEvents.emitLog(
+                buildId,
+                "stdout",
+                `Cover thumbnails generated: ${thumbs.length}`,
+            );
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            await buildEvents.emitLog(buildId, "stderr", `Cover thumbnail failed: ${message}`);
+        }
 
         // Build search index first
         const indexResult = await buildSearchIndex(repoName, buildId);

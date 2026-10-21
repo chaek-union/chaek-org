@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getBookCover } from '$lib/server/books';
+import { getCoverThumbnail } from '$lib/server/covers';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -15,12 +16,20 @@ const CONTENT_TYPES: Record<string, string> = {
 
 /**
  * GET /api/books/:bookId/cover?lang=ko
- * Serve the cover image declared by the `cover` field in book.json.
+ * Serve a card-sized thumbnail of the cover declared by the `cover` field in
+ * book.json, falling back to the original image if thumbnailing fails.
  */
 export const GET: RequestHandler = async ({ params, url, request }) => {
-	const filePath = await getBookCover(params.bookId, url.searchParams.get('lang') ?? undefined);
-	if (!filePath) {
+	const srcPath = await getBookCover(params.bookId, url.searchParams.get('lang') ?? undefined);
+	if (!srcPath) {
 		throw error(404, 'Cover not found');
+	}
+
+	let filePath = srcPath;
+	try {
+		filePath = await getCoverThumbnail(params.bookId, srcPath);
+	} catch (err) {
+		console.error(`Cover thumbnail failed for ${params.bookId}:`, err);
 	}
 
 	const stats = await fs.stat(filePath);

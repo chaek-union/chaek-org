@@ -52,11 +52,12 @@ interface BookJson {
 const COVER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
 
 /**
- * Resolve the cover image declared in book.json to an absolute path.
- * Per-locale covers fall back to the other locales when the requested one is missing.
+ * Resolve every cover image declared in book.json to an absolute path,
+ * ordered so the requested locale (if any) comes first. Missing or
+ * unsupported files are skipped.
  */
-export async function getBookCover(bookId: string, locale?: string): Promise<string | null> {
-    if (!isValidBookId(bookId)) return null;
+export async function getBookCoverPaths(bookId: string, locale?: string): Promise<string[]> {
+    if (!isValidBookId(bookId)) return [];
     const bookPath = path.join(BOOKS_DIR, bookId);
     let cover: BookJson["cover"];
     try {
@@ -65,7 +66,7 @@ export async function getBookCover(bookId: string, locale?: string): Promise<str
         );
         cover = bookJson.cover;
     } catch {
-        return null;
+        return [];
     }
 
     let candidates: string[] = [];
@@ -81,16 +82,24 @@ export async function getBookCover(bookId: string, locale?: string): Promise<str
         ].map(([, p]) => p);
     }
 
+    const paths: string[] = [];
     for (const rel of candidates) {
         const filePath = safeJoin(bookPath, rel);
         if (!filePath || !COVER_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue;
         try {
-            if ((await fs.stat(filePath)).isFile()) return filePath;
+            if ((await fs.stat(filePath)).isFile() && !paths.includes(filePath)) paths.push(filePath);
         } catch {
-            // try next candidate
+            // skip missing file
         }
     }
-    return null;
+    return paths;
+}
+
+/**
+ * Resolve the cover image for a locale, falling back to the other locales.
+ */
+export async function getBookCover(bookId: string, locale?: string): Promise<string | null> {
+    return (await getBookCoverPaths(bookId, locale))[0] ?? null;
 }
 
 /**
