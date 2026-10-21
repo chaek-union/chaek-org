@@ -24,7 +24,7 @@
 		return `hsl(${h}, 35%, 82%)`;
 	}
 
-	const coverColor = hashColor(id);
+	const coverColor = $derived(hashColor(id));
 
 	const formattedDate = $derived(
 		lastUpdated

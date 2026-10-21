@@ -13,6 +13,19 @@ import remarkFootnotes from "remark-footnotes";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 
+type CompileOptions = NonNullable<Parameters<typeof compile>[1]>;
+
+// mdsvex 0.12 types plugins against an older unified API than the plugins we
+// use; they are compatible at runtime, so cast at this boundary.
+const remarkPlugins = [
+    remarkGfm,
+    [remarkFootnotes, { inlineNotes: true }],
+] as unknown as CompileOptions["remarkPlugins"];
+const rehypePlugins = [
+    rehypeSlug,
+    [rehypeAutolinkHeadings, { behavior: "wrap" }],
+] as unknown as CompileOptions["rehypePlugins"];
+
 export const load: PageServerLoad = async ({ params, cookies }) => {
     const book = await getBookMetadata(params.bookId);
 
@@ -63,13 +76,10 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 
         // Compile markdown to HTML using mdsvex
         const result = await compile(markdown, {
-            remarkPlugins: [remarkGfm, [remarkFootnotes, { inlineNotes: true }]],
-            rehypePlugins: [
-                rehypeSlug,
-                [rehypeAutolinkHeadings, { behavior: "wrap" }],
-            ],
+            remarkPlugins,
+            rehypePlugins,
             highlight: {
-                highlighter: (code: string, lang: string | undefined) => {
+                highlighter: (code: string, lang: string | null | undefined) => {
                     if (lang && hljs.getLanguage(lang)) {
                         const highlighted = hljs.highlight(code, { language: lang }).value;
                         return `<pre class="code-block"><code class="hljs language-${lang}">${highlighted}</code></pre>`;

@@ -7,7 +7,8 @@
 	let { data }: { data: PageData } = $props();
 
 	let logs = $state<string[]>([]);
-	let status = $state(data.initialStatus);
+	// Starts from the server status, then follows live SSE updates
+	let status = $derived(data.initialStatus);
 	let eventSource: EventSource | null = null;
 
 	const pageTitle = $derived(`Build Log #${data.buildId} - ${$t('app.title')}`);
