@@ -1,6 +1,4 @@
 import { env } from '$env/dynamic/private';
-import { OpenRouter } from '@openrouter/sdk';
-import { TooManyRequestsResponseError } from '@openrouter/sdk/models/errors';
 
 export interface LLMMessage {
 	role: 'system' | 'user' | 'assistant';
@@ -12,72 +10,121 @@ export interface LLMOptions {
 	temperature?: number;
 }
 
-function getClient() {
-	const apiKey = env.OPENROUTER_API_KEY;
-	if (!apiKey) {
-		throw new Error('OPENROUTER_API_KEY not configured in environment variables');
-	}
-	return new OpenRouter({ apiKey });
+const VLLM_TIMEOUT_MS = 120_000;
+
+function getBaseUrl(): string {
+	return env.VLLM_BASE_URL || 'http://10.125.208.42:9241';
 }
 
-function getModel() {
-	return env.OPENROUTER_MODEL || 'anthropic/claude-3.5-sonnet';
+let cachedModel: string | null = null;
+
+async function resolveModel(): Promise<string> {
+	if (env.VLLM_MODEL) return env.VLLM_MODEL;
+
+	const response = await fetch(`${getBaseUrl()}/v1/models`);
+	if (!response.ok) throw new Error(`Failed to list models: ${response.status}`);
+	const data = await response.json();
+	const id = data?.data?.[0]?.id;
+	if (!id) throw new Error('No models available on vLLM server');
+	return id;
+}
+
+async function getModel(): Promise<string> {
+	if (!cachedModel) cachedModel = await resolveModel();
+	return cachedModel;
 }
 
 export async function callLLM(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
 ): Promise<string> {
-	try {
-		const client = getClient();
-		const response = await client.chat.send({
-			httpReferer: 'https://chaek.org',
-			xTitle: 'Chaek Textbook Platform',
-			chatGenerationParams: {
-				model: getModel(),
-				messages: messages.map((m) => ({ role: m.role, content: m.content })),
-				maxTokens: options.maxTokens,
-				temperature: options.temperature,
-				stream: false
-			}
-		});
+	const model = await getModel();
+	const baseUrl = getBaseUrl();
 
-		if (!response.choices?.[0]?.message) {
-			throw new Error('Invalid response from OpenRouter');
-		}
+	const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			model,
+			messages: messages.map((m) => ({ role: m.role, content: m.content })),
+			max_tokens: options.maxTokens ?? 2048,
+			temperature: options.temperature ?? 0.7,
+			stream: false
+		}),
+		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
+	});
 
-		return response.choices[0].message.content as string;
-	} catch (error) {
-		if (error instanceof TooManyRequestsResponseError) {
-			throw new Error('rate-limited');
-		}
-		throw error;
+	if (response.status === 429) {
+		throw new Error('rate-limited');
 	}
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
+	}
+
+	const data = await response.json();
+	return data.choices[0].message.content;
 }
 
 export async function callLLMStream(
 	messages: LLMMessage[],
 	options: LLMOptions = {}
 ) {
-	try {
-		const client = getClient();
-		const stream = await client.chat.send({
-			httpReferer: 'https://chaek.org',
-			xTitle: 'Chaek Textbook Platform',
-			chatGenerationParams: {
-				model: getModel(),
-				messages: messages.map((m) => ({ role: m.role, content: m.content })),
-				maxTokens: options.maxTokens,
-				temperature: options.temperature,
-				stream: true
-			}
-		});
+	const model = await getModel();
+	const baseUrl = getBaseUrl();
 
-		return stream;
-	} catch (error) {
-		if (error instanceof TooManyRequestsResponseError) {
-			throw new Error('rate-limited');
+	const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+			model,
+			messages: messages.map((m) => ({ role: m.role, content: m.content })),
+			max_tokens: options.maxTokens ?? 2048,
+			temperature: options.temperature ?? 0.7,
+			stream: true
+		}),
+		signal: AbortSignal.timeout(VLLM_TIMEOUT_MS)
+	});
+
+	if (response.status === 429) {
+		throw new Error('rate-limited');
+	}
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`vLLM API error ${response.status}: ${errorText}`);
+	}
+
+	return parseSSEStream(response);
+}
+
+async function* parseSSEStream(response: Response) {
+	const reader = response.body!.getReader();
+	const decoder = new TextDecoder();
+	let buffer = '';
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+
+			buffer += decoder.decode(value, { stream: true });
+			const lines = buffer.split('\n');
+			buffer = lines.pop() || '';
+
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (!trimmed || !trimmed.startsWith('data: ')) continue;
+				const data = trimmed.slice(6);
+				if (data === '[DONE]') return;
+
+				try {
+					yield JSON.parse(data);
+				} catch {
+					// skip malformed chunks
+				}
+			}
 		}
-		throw error;
+	} finally {
+		reader.releaseLock();
 	}
 }
