@@ -117,6 +117,7 @@
 							description={book.description}
 							lastUpdated={book.lastUpdated}
 							hasPdf={book.hasPdf}
+							hasCover={book.hasCover}
 						/>
 					{/each}
 				</div>

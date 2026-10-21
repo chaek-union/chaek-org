@@ -7,6 +7,7 @@ export interface Book {
     description?: string;
     lastUpdated?: Date;
     hasPdf?: boolean;
+    hasCover?: boolean;
 }
 
 export const BOOKS_DIR = path.join(process.cwd(), "books");
@@ -43,6 +44,53 @@ export function safeJoin(base: string, relPath: string): string | null {
 interface BookJson {
     title?: string;
     root?: string;
+    // Path to the cover image, relative to the repository root (where
+    // book.json lives). Either a single path or one per locale.
+    cover?: string | Record<string, string>;
+}
+
+const COVER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
+
+/**
+ * Resolve the cover image declared in book.json to an absolute path.
+ * Per-locale covers fall back to the other locales when the requested one is missing.
+ */
+export async function getBookCover(bookId: string, locale?: string): Promise<string | null> {
+    if (!isValidBookId(bookId)) return null;
+    const bookPath = path.join(BOOKS_DIR, bookId);
+    let cover: BookJson["cover"];
+    try {
+        const bookJson: BookJson = JSON.parse(
+            await fs.readFile(path.join(bookPath, "book.json"), "utf-8"),
+        );
+        cover = bookJson.cover;
+    } catch {
+        return null;
+    }
+
+    let candidates: string[] = [];
+    if (typeof cover === "string") {
+        candidates = [cover];
+    } else if (cover && typeof cover === "object") {
+        const entries = Object.entries(cover).filter(
+            (e): e is [string, string] => typeof e[1] === "string",
+        );
+        candidates = [
+            ...entries.filter(([lang]) => lang === locale),
+            ...entries.filter(([lang]) => lang !== locale),
+        ].map(([, p]) => p);
+    }
+
+    for (const rel of candidates) {
+        const filePath = safeJoin(bookPath, rel);
+        if (!filePath || !COVER_EXTENSIONS.has(path.extname(filePath).toLowerCase())) continue;
+        try {
+            if ((await fs.stat(filePath)).isFile()) return filePath;
+        } catch {
+            // try next candidate
+        }
+    }
+    return null;
 }
 
 /**
@@ -127,6 +175,7 @@ export async function getBooks(): Promise<Book[]> {
                         name: bookTitle,
                         lastUpdated: stats.mtime,
                         hasPdf,
+                        hasCover: (await getBookCover(entry.name)) !== null,
                     });
                 }
             }

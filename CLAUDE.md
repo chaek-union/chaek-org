@@ -191,9 +191,15 @@
 ```json
 {
   "title": "교재 제목",
-  "root": "./docs"  // 선택사항, 기본값 "."
+  "root": "./docs",  // 선택사항, 기본값 "."
+  "cover": "assets/cover.png"  // 선택사항, 표지 이미지 경로
 }
 ```
+
+- `cover`는 저장소 루트(book.json 위치) 기준 상대 경로 (`root`와 무관). 이미지는 저장소 내 어디든 둘 수 있음
+- 언어별 표지: `"cover": { "ko": "assets/cover_ko.jpg", "en": "assets/cover_en.jpg" }` (요청 언어가 없으면 다른 언어로 대체)
+- 지원 형식: png, jpg, jpeg, webp, gif, svg
+- `GET /api/books/{bookId}/cover?lang=ko`로 서빙되며, 메인 페이지 교재 카드에 표시됨
 
 ## 일반적인 작업
 

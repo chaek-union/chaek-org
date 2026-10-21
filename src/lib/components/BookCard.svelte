@@ -6,13 +6,15 @@
 		name,
 		description,
 		lastUpdated,
-		hasPdf
+		hasPdf,
+		hasCover
 	}: {
 		id: string;
 		name: string;
 		description?: string;
 		lastUpdated?: string | Date;
 		hasPdf?: boolean;
+		hasCover?: boolean;
 	} = $props();
 
 	function hashColor(str: string): string {
@@ -35,7 +37,11 @@
 
 <div class="book-card">
 	<div class="book-cover" style="background-color: {coverColor}">
-		<span class="cover-icon">📖</span>
+		{#if hasCover}
+			<img src="/api/books/{id}/cover?lang={$locale}" alt={name} loading="lazy" />
+		{:else}
+			<span class="cover-icon">📖</span>
+		{/if}
 	</div>
 
 	<div class="book-info">
@@ -82,12 +88,20 @@
 	.book-cover {
 		width: 80px;
 		min-height: 100px;
+		height: 120px;
 		border-radius: 6px;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 1.5rem;
+		overflow: hidden;
+	}
+
+	.book-cover img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.book-info {
@@ -173,6 +187,7 @@
 		.book-cover {
 			width: 60px;
 			min-height: 80px;
+			height: 90px;
 		}
 
 		.book-title {
