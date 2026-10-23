@@ -1,18 +1,52 @@
 <script lang="ts">
 	import { t, locale } from '$lib/i18n';
+	import { onMount } from 'svelte';
 	import LanguageSwitcher from './LanguageSwitcher.svelte';
 
-	let { data, fullWidth = false, bookId = '' }: { data: any; fullWidth?: boolean; bookId?: string } = $props();
+	let {
+		data,
+		fullWidth = false,
+		bookId = '',
+		overlay = false
+	}: { data: any; fullWidth?: boolean; bookId?: string; overlay?: boolean } = $props();
 
 	const session = $derived(data?.session);
 	const isChaekMember = $derived((session?.user as any)?.isChaekMember);
-	const logoSrc = $derived($locale === 'ko' ? '/chaek-logo-kr.png' : '/chaek-logo-en.png');
+	const logoBase = $derived($locale === 'ko' ? '/chaek-logo-kr' : '/chaek-logo-en');
+
+	// In overlay mode the bar is transparent over the page's hero and turns
+	// white once the page has scrolled.
+	let nav: HTMLElement;
+	let logo: HTMLImageElement;
+	let scrolled = $state(false);
+
+	const logoSrc = $derived(overlay && !scrolled ? `${logoBase}-white.png` : `${logoBase}.png`);
+
+	// Svelte keeps the server-rendered src on hydration even when it differs
+	// (the server always renders the default locale), so set it on the client
+	$effect(() => {
+		if (logo && logo.getAttribute('src') !== logoSrc) logo.src = logoSrc;
+	});
+
+	onMount(() => {
+		if (!overlay) return;
+		// Pages scroll inside the layout's .content element, not the window
+		const scroller: HTMLElement | Window = nav.closest<HTMLElement>('.content') ?? window;
+		const update = () => {
+			const top = scroller instanceof Window ? scroller.scrollY : scroller.scrollTop;
+			scrolled = top > 8;
+		};
+		update();
+		scroller.addEventListener('scroll', update, { passive: true });
+		return () => scroller.removeEventListener('scroll', update);
+	});
 </script>
 
-<nav class="navbar">
+<nav class="navbar" class:overlay class:scrolled bind:this={nav}>
 	<div class="navbar-container" class:full-width={fullWidth}>
 		<div class="navbar-brand">
-			<img src={logoSrc} alt={$t('app.title')} class="brand-logo" />
+			<!-- Over the hero the white-ink version is shown (white areas transparent) -->
+			<img src={logoSrc} alt={$t('app.title')} class="brand-logo" bind:this={logo} />
 			<a href="/" class="logo-link logo-link-left" aria-label={$t('app.title')}></a>
 			<a href="https://kasra.kr" target="_blank" rel="noopener noreferrer" class="logo-link logo-link-right" aria-label="KASRA"></a>
 		</div>
@@ -52,6 +86,59 @@
 		background: white;
 		border-bottom: 1px solid #e0e0e0;
 		z-index: 1000;
+		transition:
+			background 0.25s,
+			border-color 0.25s,
+			box-shadow 0.25s;
+	}
+
+	/* Overlay mode: sits on top of the hero (the page pulls the hero up under
+	   it) until the page scrolls */
+	.navbar.overlay {
+		--navbar-h: 83px;
+		margin-bottom: calc(-1 * var(--navbar-h));
+	}
+
+	.navbar.overlay:not(.scrolled) {
+		background: transparent;
+		border-bottom-color: transparent;
+	}
+
+	.navbar.overlay.scrolled {
+		box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+	}
+
+	.navbar.overlay:not(.scrolled) .brand-logo {
+		filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.35));
+	}
+
+	.navbar.overlay:not(.scrolled) .nav-link {
+		color: white;
+		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+	}
+
+	.navbar.overlay:not(.scrolled) .nav-link:hover {
+		background: rgba(255, 255, 255, 0.16);
+		color: white;
+	}
+
+	.navbar.overlay:not(.scrolled) :global(.dropdown-trigger) {
+		background: rgba(255, 255, 255, 0.14);
+		border-color: rgba(255, 255, 255, 0.55);
+		color: white;
+	}
+
+	.navbar.overlay:not(.scrolled) :global(.dropdown-trigger .chevron) {
+		color: white;
+	}
+
+	/* the globe is a colour emoji, so whiten it with a filter */
+	.navbar.overlay:not(.scrolled) :global(.dropdown-trigger .icon) {
+		filter: grayscale(1) brightness(0) invert(1);
+	}
+
+	.navbar.overlay:not(.scrolled) :global(.dropdown-trigger:hover) {
+		background: rgba(255, 255, 255, 0.24);
 	}
 
 	.navbar-container {
@@ -118,6 +205,10 @@
 @media (max-width: 768px) {
 		.navbar-container {
 			padding: 0.6rem 1rem;
+		}
+
+		.navbar.overlay {
+			--navbar-h: 57px;
 		}
 
 		.brand-logo {

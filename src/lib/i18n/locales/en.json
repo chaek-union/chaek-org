@@ -15,25 +15,25 @@
 		"login": "Login"
 	},
 	"hero": {
-		"headlinePrefix": "",
-		"headlineBold": "Open Source",
-		"headline": " Textbook Platform, ",
-		"headlineHighlight": "chaek",
-		"headlineSuffix": "",
+		"titleLine1": "Knowledge, further,",
+		"titleLine2": "for more people.",
+		"subtitleLine1": "Where anyone can freely learn and share:",
+		"subtitleLine2": "chaek.org, the open-source university textbook platform",
 		"searchPlaceholder": "Search textbooks by title..."
 	},
 	"filter": {
-		"title": "Filter",
 		"allBooks": "All Textbooks",
 		"withPdf": "With PDF"
 	},
 	"books": {
 		"title": "Textbooks",
 		"empty": "No textbooks available yet.",
-		"lastUpdated": "Last updated",
+		"noMatch": "No textbooks match your search.",
+		"resetSearch": "Clear search",
+		"lastUpdated": "Updated",
 		"available": "available",
-		"readOnline": "Read Online",
-		"download": "Download",
+		"readOnline": "Read",
+		"download": "PDF",
 		"openSource": "Open Source"
 	},
 	"auth": {

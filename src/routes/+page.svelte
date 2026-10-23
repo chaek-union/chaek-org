@@ -4,7 +4,8 @@
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import Navbar from '$lib/components/Navbar.svelte';
-	import BookCard from '$lib/components/BookCard.svelte';
+	import BookCover from '$lib/components/BookCover.svelte';
+	import BookInfo from '$lib/components/BookInfo.svelte';
 
 	// Reload page data when locale changes to get translated book titles
 	let initialLocale: string | null = null;
@@ -40,6 +41,11 @@
 	let searchQuery = $state('');
 	let filterPdf = $state(false);
 
+	function resetSearch() {
+		searchQuery = '';
+		filterPdf = false;
+	}
+
 	const pdfCount = $derived(data.books.filter((b) => b.hasPdf).length);
 
 	const filteredBooks = $derived(
@@ -56,6 +62,30 @@
 		})
 	);
 
+	// Books per shelf by viewport width; each step keeps columns >= ~165px.
+	// Rows are built here (not by CSS wrapping) because every row needs its own
+	// shelf.
+	const SHELF_BREAKPOINTS: [minWidth: number, columns: number][] = [
+		[1600, 7],
+		[1320, 6],
+		[1060, 5],
+		[800, 4],
+		[560, 3]
+	];
+	let viewportWidth = $state(0);
+	const columns = $derived(
+		viewportWidth
+			? (SHELF_BREAKPOINTS.find(([min]) => viewportWidth >= min)?.[1] ?? 2)
+			: SHELF_BREAKPOINTS[0][1]
+	);
+	const shelfRows = $derived.by(() => {
+		const rows: (typeof filteredBooks)[] = [];
+		for (let i = 0; i < filteredBooks.length; i += columns) {
+			rows.push(filteredBooks.slice(i, i + columns));
+		}
+		return rows;
+	});
+
 	const pageTitle = $derived(`${$t('app.title')} - ${$t('app.subtitle')}`);
 </script>
 
@@ -64,12 +94,24 @@
 	<link rel="stylesheet" href="/home.css" />
 </svelte:head>
 
-<Navbar {data} />
+<svelte:window bind:innerWidth={viewportWidth} />
+
+<Navbar {data} overlay />
 
 <main>
 	<section class="hero">
-		<h1>{$t('hero.headlinePrefix')}<strong>{$t('hero.headlineBold')}</strong>{$t('hero.headline')}<strong>{$t('hero.headlineHighlight')}</strong>{$t('hero.headlineSuffix')}</h1>
-		<div class="hero-search">
+		<h1 class="hero-title">
+			<span>{$t('hero.titleLine1')}</span>
+			<span>{$t('hero.titleLine2')}</span>
+		</h1>
+		<p class="hero-subtitle">
+			<span>{$t('hero.subtitleLine1')}</span>
+			<span>{$t('hero.subtitleLine2')}</span>
+		</p>
+	</section>
+
+	<div class="search-card">
+		<div class="search-field">
 			<svg
 				class="search-icon"
 				width="20"
@@ -88,40 +130,55 @@
 				bind:value={searchQuery}
 			/>
 		</div>
-	</section>
-
-	<div class="content-layout">
-		<aside class="filter-sidebar">
-			<h3 class="filter-title">{$t('filter.title')}</h3>
-			<div class="filter-group">
-				<label class="filter-checkbox">
-					<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
-					<span>{$t('filter.allBooks')} ({data.books.length})</span>
-				</label>
-				<label class="filter-checkbox">
-					<input type="checkbox" bind:checked={filterPdf} />
-					<span>{$t('filter.withPdf')} ({pdfCount})</span>
-				</label>
-			</div>
-		</aside>
-
-		<section class="books" id="books">
-			{#if filteredBooks.length === 0}
-				<p class="empty">{$t('books.empty')}</p>
-			{:else}
-				<div class="grid grid-auto">
-					{#each filteredBooks as book}
-						<BookCard
-							id={book.id}
-							name={book.name}
-							description={book.description}
-							lastUpdated={book.lastUpdated}
-							hasPdf={book.hasPdf}
-							hasCover={book.hasCover}
-						/>
-					{/each}
-				</div>
-			{/if}
-		</section>
+		<div class="search-filters">
+			<label class="filter-checkbox">
+				<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
+				<span>{$t('filter.allBooks')} ({data.books.length})</span>
+			</label>
+			<label class="filter-checkbox">
+				<input type="checkbox" bind:checked={filterPdf} />
+				<span>{$t('filter.withPdf')} ({pdfCount})</span>
+			</label>
+		</div>
 	</div>
+
+	<section class="books" id="books">
+		{#if filteredBooks.length === 0}
+			<!-- An empty shelf with a note, instead of a placeholder box -->
+			<div class="shelf-row shelf-empty">
+				<div class="shelf-container empty-note">
+					{#if searchQuery.trim() || filterPdf}
+						<p>{$t('books.noMatch')}</p>
+						<button type="button" class="empty-reset" onclick={resetSearch}>
+							{$t('books.resetSearch')}
+						</button>
+					{:else}
+						<p>{$t('books.empty')}</p>
+					{/if}
+				</div>
+				<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>
+			</div>
+		{:else}
+			{#each shelfRows as row}
+				<div class="shelf-row" style="--columns: {columns}">
+					<div class="shelf-container shelf-columns shelf-books">
+						{#each row as book (book.id)}
+							<BookCover id={book.id} name={book.name} hasCover={book.hasCover} />
+						{/each}
+					</div>
+					<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>
+					<div class="shelf-container shelf-columns shelf-info">
+						{#each row as book (book.id)}
+							<BookInfo
+								id={book.id}
+								name={book.name}
+								lastUpdated={book.lastUpdated}
+								hasPdf={book.hasPdf}
+							/>
+						{/each}
+					</div>
+				</div>
+			{/each}
+		{/if}
+	</section>
 </main>
