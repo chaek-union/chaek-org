@@ -372,3 +372,28 @@ main {
 		font-size: 1.25rem;
 	}
 }
+
+/* Footer on the home page: warm cream like the name plates and search card,
+   with a thin wood-toned edge, so it belongs to the same set of objects.
+   (BottomBar is shared by every page; home.css is only loaded here.
+   Selectors are prefixed with .content-wrapper to outrank its scoped styles.) */
+.content-wrapper .footer .bottom-bar {
+	background: #fbf6ee;
+	border-top: 1px solid rgba(120, 82, 48, 0.28);
+	box-shadow: 0 -4px 14px -6px rgba(40, 24, 12, 0.35);
+}
+
+.content-wrapper .footer .bottom-bar .footer-text {
+	color: #7a6552;
+}
+
+.content-wrapper .footer .bottom-bar .admin-login-btn {
+	border-color: rgba(120, 82, 48, 0.25);
+	color: #7a6552;
+}
+
+.content-wrapper .footer .bottom-bar .admin-login-btn:hover {
+	background: rgba(120, 82, 48, 0.08);
+	border-color: rgba(120, 82, 48, 0.45);
+	color: #4a3424;
+}
