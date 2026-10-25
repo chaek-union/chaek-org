@@ -55,7 +55,10 @@
 	--border-color: #e0e0e0;
 	--shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 
-	--max-width: 1400px;
+	/* Site container: the one width shared by the header, footer, family bar
+	   and page content (7 books per shelf fit at the full width) */
+	--max-width: 1840px;
+	--container-padding: 2rem;
 	--border-radius: 12px;
 	--border-radius-small: 6px;
 }
@@ -71,8 +74,18 @@ body {
 /* Container */
 .container {
 	max-width: var(--max-width);
+	box-sizing: border-box;
 	margin: 0 auto;
-	padding: 0 2rem;
+	padding: 0 var(--container-padding);
+}
+
+/* The KASRA family bar (injected by kasra.kr's script) follows the same
+   container; body raises specificity over the script's own styles */
+body #kasra-family-bar .kfb-container {
+	max-width: var(--max-width);
+	box-sizing: border-box;
+	margin: 0 auto;
+	padding: 0 var(--container-padding);
 }
 
 main {
@@ -253,11 +266,13 @@ td {
 }
 
 /* Responsive */
-@media (max-width: 1024px) {
-	.container {
-		padding: 0 1rem;
+@media (max-width: 768px) {
+	:root {
+		--container-padding: 1rem;
 	}
+}
 
+@media (max-width: 1024px) {
 	h1 {
 		font-size: 1.5rem;
 	}

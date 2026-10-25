@@ -841,3 +841,8 @@ body {
 		padding: 0.4rem 1rem;
 	}
 }
+
+/* The viewer's navbar is full width; the footer matches it */
+.content-wrapper .footer .bottom-bar .container {
+	max-width: none;
+}

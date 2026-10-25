@@ -50,9 +50,10 @@
 	}
 
 	.container {
-		max-width: 1400px;
+		max-width: var(--max-width);
+		box-sizing: border-box;
 		margin: 0 auto;
-		padding: 0 2rem;
+		padding: 0 var(--container-padding);
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -109,10 +110,6 @@
 	}
 
 	@media (max-width: 1024px) {
-		.container {
-			padding: 0 1rem;
-		}
-
 		.footer-text {
 			font-size: 0.75rem;
 		}

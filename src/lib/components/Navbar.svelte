@@ -142,9 +142,10 @@
 	}
 
 	.navbar-container {
-		max-width: 1400px;
+		max-width: var(--max-width);
+		box-sizing: border-box;
 		margin: 0 auto;
-		padding: 1rem 2rem;
+		padding: 1rem var(--container-padding);
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -204,7 +205,7 @@
 
 @media (max-width: 768px) {
 		.navbar-container {
-			padding: 0.6rem 1rem;
+			padding: 0.6rem var(--container-padding);
 		}
 
 		.navbar.overlay {
