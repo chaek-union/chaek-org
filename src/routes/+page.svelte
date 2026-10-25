@@ -110,75 +110,80 @@
 		</p>
 	</section>
 
-	<div class="search-card">
-		<div class="search-field">
-			<svg
-				class="search-icon"
-				width="20"
-				height="20"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<circle cx="11" cy="11" r="8" />
-				<path d="m21 21-4.35-4.35" />
-			</svg>
-			<input
-				type="text"
-				placeholder={$t('hero.searchPlaceholder')}
-				bind:value={searchQuery}
-			/>
-		</div>
-		<div class="search-filters">
-			<label class="filter-checkbox">
-				<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
-				<span>{$t('filter.allBooks')} ({data.books.length})</span>
-			</label>
-			<label class="filter-checkbox">
-				<input type="checkbox" bind:checked={filterPdf} />
-				<span>{$t('filter.withPdf')} ({pdfCount})</span>
-			</label>
-		</div>
-	</div>
-
-	<section class="books" id="books">
-		{#if filteredBooks.length === 0}
-			<!-- An empty shelf with a note, instead of a placeholder box -->
-			<div class="shelf-row shelf-empty">
-				<div class="shelf-container empty-note">
-					{#if searchQuery.trim() || filterPdf}
-						<p>{$t('books.noMatch')}</p>
-						<button type="button" class="empty-reset" onclick={resetSearch}>
-							{$t('books.resetSearch')}
-						</button>
-					{:else}
-						<p>{$t('books.empty')}</p>
-					{/if}
-				</div>
-				<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>
+	<!-- The library wall starts right where the photo ends -->
+	<div class="wall">
+		<div class="search-card">
+			<div class="search-field">
+				<svg
+					class="search-icon"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<circle cx="11" cy="11" r="8" />
+					<path d="m21 21-4.35-4.35" />
+				</svg>
+				<input
+					type="text"
+					placeholder={$t('hero.searchPlaceholder')}
+					bind:value={searchQuery}
+				/>
 			</div>
-		{:else}
-			{#each shelfRows as row}
-				<div class="shelf-row" style="--columns: {columns}">
-					<div class="shelf-container shelf-columns shelf-books">
-						{#each row as book (book.id)}
-							<BookCover id={book.id} name={book.name} hasCover={book.hasCover} />
-						{/each}
+			<div class="search-filters">
+				<label class="filter-checkbox">
+					<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
+					<span>{$t('filter.allBooks')} ({data.books.length})</span>
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" bind:checked={filterPdf} />
+					<span>{$t('filter.withPdf')} ({pdfCount})</span>
+				</label>
+			</div>
+		</div>
+
+		<section class="books" id="books">
+			{#if filteredBooks.length === 0}
+				<!-- An empty shelf with a note, instead of a placeholder box -->
+				<div class="shelf-row shelf-empty">
+					<div class="shelf-container empty-note">
+						<div class="empty-card">
+							{#if searchQuery.trim() || filterPdf}
+								<p>{$t('books.noMatch')}</p>
+								<button type="button" class="empty-reset" onclick={resetSearch}>
+									{$t('books.resetSearch')}
+								</button>
+							{:else}
+								<p>{$t('books.empty')}</p>
+							{/if}
+						</div>
 					</div>
 					<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>
-					<div class="shelf-container shelf-columns shelf-info">
-						{#each row as book (book.id)}
-							<BookInfo
-								id={book.id}
-								name={book.name}
-								lastUpdated={book.lastUpdated}
-								hasPdf={book.hasPdf}
-							/>
-						{/each}
-					</div>
 				</div>
-			{/each}
-		{/if}
-	</section>
+			{:else}
+				{#each shelfRows as row}
+					<div class="shelf-row" style="--columns: {columns}">
+						<div class="shelf-container shelf-columns shelf-books">
+							{#each row as book (book.id)}
+								<BookCover id={book.id} name={book.name} hasCover={book.hasCover} />
+							{/each}
+						</div>
+						<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>
+						<div class="shelf-container shelf-columns shelf-info">
+							{#each row as book (book.id)}
+								<BookInfo
+									id={book.id}
+									name={book.name}
+									lastUpdated={book.lastUpdated}
+									hasPdf={book.hasPdf}
+								/>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			{/if}
+		</section>
+	</div>
 </main>
