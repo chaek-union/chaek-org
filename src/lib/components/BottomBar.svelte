@@ -56,6 +56,7 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		gap: 0.75rem;
 	}
 
 	.footer-text {
@@ -63,12 +64,15 @@
 		color: #666;
 		font-size: 0.85rem;
 		flex: 1;
+		min-width: 0;
 		text-align: center;
+		text-wrap: balance;
 	}
 
 	.footer-text a {
 		color: var(--color-primary);
 		text-decoration: none;
+		white-space: nowrap;
 		transition: all 0.2s;
 	}
 

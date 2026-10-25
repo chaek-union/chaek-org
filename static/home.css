@@ -12,6 +12,7 @@ main {
    horizontal-plank tile) starting at the photo's bottom edge; lit from the
    window above, darker at the sides. */
 .wall {
+	position: relative;
 	flex: 1 0 auto;
 	display: flex;
 	flex-direction: column;
@@ -28,17 +29,11 @@ main {
 .hero {
 	/* Keep the photo vivid: only a soft shade right behind the centered text */
 	--hero-shade: ellipse 42% 52% at 50% 44%;
-	background:
-		/* darker top edge so the transparent navbar stays readable */
-		linear-gradient(180deg, rgba(10, 20, 24, 0.45), rgba(10, 20, 24, 0) 30%),
-		radial-gradient(
-			var(--hero-shade),
-			rgba(10, 20, 24, 0.56),
-			rgba(10, 20, 24, 0.3) 45%,
-			rgba(10, 20, 24, 0) 80%
-		),
-		url('/chaek-hero-campus.webp') center 45% / cover no-repeat;
+	/* how much of the photo's bottom edge to crop away */
+	--hero-crop-bottom: 50px;
 	position: relative;
+	isolation: isolate;
+	overflow: hidden;
 	color: white;
 	/* the transparent navbar (83px) overlaps the top of the hero */
 	min-height: calc(440px + 83px);
@@ -52,15 +47,35 @@ main {
 	text-align: center;
 }
 
+/* The photo (with its shades) sits on a layer that extends past the hero's
+   bottom by --hero-crop-bottom, so that strip of the photo is cut off while
+   the bottom-anchored image still fills the hero at every size */
+.hero::before {
+	content: '';
+	position: absolute;
+	inset: 0 0 calc(-1 * var(--hero-crop-bottom)) 0;
+	z-index: -1;
+	background:
+		/* darker top edge so the transparent navbar stays readable */
+		linear-gradient(180deg, rgba(10, 20, 24, 0.45), rgba(10, 20, 24, 0) 30%),
+		radial-gradient(
+			var(--hero-shade),
+			rgba(10, 20, 24, 0.56),
+			rgba(10, 20, 24, 0.3) 45%,
+			rgba(10, 20, 24, 0) 80%
+		),
+		url('/chaek-hero-campus.webp') center bottom / cover no-repeat;
+}
+
 /* Where the photo meets the wall: the top of the wall catches the light like
    a softly rounded wooden edge - a warm band right under the photo fading
    downward */
-.hero::after {
+.wall::before {
 	content: '';
 	position: absolute;
 	left: 0;
 	right: 0;
-	top: 100%;
+	top: 0;
 	height: 5px;
 	background: linear-gradient(
 		180deg,

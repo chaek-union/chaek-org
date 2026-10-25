@@ -211,6 +211,10 @@
 			--navbar-h: 57px;
 		}
 
+		.nav-link {
+			white-space: nowrap;
+		}
+
 		.brand-logo {
 			height: 36px;
 		}
@@ -221,6 +225,18 @@
 
 		.navbar-actions {
 			gap: 0.25rem;
+		}
+	}
+	/* Very narrow phones: a smaller logo and tighter links keep the bar on one
+	   line at the same 57px height the overlay hero assumes */
+	@media (max-width: 400px) {
+		.brand-logo {
+			height: 28px;
+		}
+
+		.nav-link {
+			padding: 0.4rem 0.45rem;
+			font-size: 0.82rem;
 		}
 	}
 </style>

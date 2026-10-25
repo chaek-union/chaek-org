@@ -88,6 +88,7 @@
 		flex-direction: column;
 		align-items: center;
 		text-align: center;
+		container-type: inline-size;
 	}
 
 	.hanger {
@@ -163,16 +164,21 @@
 		display: flex;
 		justify-content: center;
 		gap: 0.4rem;
+		width: 100%;
+		max-width: 180px;
 		margin-top: 0.6rem;
 	}
 
 	.btn-read,
 	.btn-pdf {
+		flex: 1 1 0;
+		min-width: 0;
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.25rem;
 		height: 28px;
-		padding: 0 0.8rem;
+		padding: 0 0.5rem;
 		border-radius: 999px;
 		background: transparent;
 		font-family: inherit;
@@ -226,6 +232,23 @@
 		stroke-width: 2.4;
 		stroke-linecap: round;
 		stroke-linejoin: round;
+	}
+
+	/* Narrow plates: drop the icons and tighten so both buttons stay inside */
+	@container (max-width: 175px) {
+		.book-actions {
+			gap: 0.3rem;
+		}
+
+		.btn-read,
+		.btn-pdf {
+			padding: 0 0.3rem;
+		}
+
+		.btn-read svg,
+		.btn-pdf svg {
+			display: none;
+		}
 	}
 
 	.btn-read:focus-visible,
