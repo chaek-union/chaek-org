@@ -66,17 +66,24 @@
 </div>
 
 <style>
-	/* Light name plate hanging from the shelf above */
+	/* Paper name plate hanging from the shelf above: smooth white copy paper
+	   (barely-there grain), a touch darker at the bottom,
+	   casting a soft shadow down and
+	   to the right onto the wall (same light as the books) */
 	.book-info {
 		position: relative;
 		min-width: 0;
 		padding: 0.75rem 0.5rem 0.8rem;
-		background: #fffdf9;
-		border: 1px solid rgba(110, 80, 50, 0.1);
+		background:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.6' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .38 0 0 0 0 .35 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E"),
+			linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(120, 100, 80, 0.04)),
+			#ffffff;
+		border: 1px solid rgba(90, 70, 50, 0.08);
 		border-radius: 10px;
 		box-shadow:
-			0 1px 2px rgba(70, 45, 20, 0.08),
-			0 8px 18px -8px rgba(70, 45, 20, 0.28);
+			0 1px 1px rgba(60, 38, 18, 0.12),
+			3px 6px 10px -3px rgba(50, 30, 14, 0.32),
+			8px 16px 26px -10px rgba(50, 30, 14, 0.36);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
