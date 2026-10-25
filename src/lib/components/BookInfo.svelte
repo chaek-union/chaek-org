@@ -171,7 +171,8 @@
 
 	.btn-read,
 	.btn-pdf {
-		flex: 1 1 0;
+		/* share the row by content width ("다운로드" is longer than "읽기") */
+		flex: 1 1 auto;
 		min-width: 0;
 		display: inline-flex;
 		align-items: center;
@@ -234,20 +235,18 @@
 		stroke-linejoin: round;
 	}
 
-	/* Narrow plates: drop the icons and tighten so both buttons stay inside */
-	@container (max-width: 175px) {
+	/* Narrow plates: stack the two buttons (icons kept) so they stay inside */
+	@container (max-width: 148px) {
 		.book-actions {
+			flex-direction: column;
+			align-items: stretch;
 			gap: 0.3rem;
+			max-width: 120px;
 		}
 
 		.btn-read,
 		.btn-pdf {
-			padding: 0 0.3rem;
-		}
-
-		.btn-read svg,
-		.btn-pdf svg {
-			display: none;
+			flex: none;
 		}
 	}
 
