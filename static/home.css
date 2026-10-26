@@ -53,8 +53,11 @@ main {
 .hero::before {
 	content: '';
 	position: absolute;
-	inset: 0 0 calc(-1 * var(--hero-crop-bottom)) 0;
+	/* a touch of blur keeps the focus on the shelves below; the layer bleeds
+	   past the top and sides so the blurred edges never show */
+	inset: -12px -12px calc(-1 * var(--hero-crop-bottom)) -12px;
 	z-index: -1;
+	filter: blur(1.5px);
 	background:
 		/* darker top edge so the transparent navbar stays readable */
 		linear-gradient(180deg, rgba(10, 20, 24, 0.45), rgba(10, 20, 24, 0) 30%),
