@@ -52,6 +52,9 @@ const { handle: authHandle } = SvelteKitAuth({
 	],
 	secret: AUTH_SECRET,
 	trustHost: true,
+	// The proxy sends X-Forwarded-Proto: http, so locals.auth() would look for the
+	// non-secure cookie name while /auth/* sets __Secure- cookies; pin it to secure
+	useSecureCookies: true,
 	callbacks: {
 		async signIn({ user, account, profile }) {
 			if (!account?.access_token || !profile) return false;
