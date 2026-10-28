@@ -41,6 +41,8 @@ const { handle: authHandle } = SvelteKitAuth({
 		GitHub({
 			clientId: GITHUB_ID,
 			clientSecret: GITHUB_SECRET,
+			// GitHub sends an RFC 9207 `iss` param on the callback; Auth.js defaults to https://authjs.dev
+			issuer: 'https://github.com/login/oauth',
 			authorization: {
 				params: {
 					scope: 'read:user read:org'
