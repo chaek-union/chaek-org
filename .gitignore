@@ -31,3 +31,6 @@ vite.config.ts.timestamp-*
 
 # oh-my-claudecode local state
 .omc/
+
+# Database backups
+backup*.sql
