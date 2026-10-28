@@ -70,32 +70,166 @@ function buildTranslatePrompt(sourceLang: string, targetLang: string, isMarkdown
 	const src = LANG_NAMES[sourceLang] || sourceLang;
 	const tgt = LANG_NAMES[targetLang] || targetLang;
 
+	const style = targetLang === 'ko'
+		? '- Write natural, fluent academic Korean as found in a university textbook. Keep the sentence-ending style of a Korean textbook consistent (합니다체 for prose unless the source is clearly informal). Technical terms may keep the English in parentheses on first use, e.g. 전사체(transcriptome).\n- Write only in Hangul. Never use Chinese characters (漢字/汉字), not even for technical terms.\n- Quotations in languages other than English (e.g. German or Latin) may stay in the original language.'
+		: '- Write natural, fluent academic English as found in a university textbook. Do not leave any Korean words; romanize or translate Korean proper nouns.';
+
 	if (isMarkdown) {
 		return [
-			`You are a professional translator. Translate the following Markdown from ${src} to ${tgt}.`,
+			`You are a professional translator of university textbooks. Translate the following Markdown from ${src} to ${tgt}.`,
 			'Rules:',
-			'- Preserve ALL Markdown formatting exactly (headings, lists, bold, italic, links, etc.)',
-			'- Preserve all <x id="..."/> placeholder tags exactly as-is, do not translate or modify them',
+			`- Translate EVERY sentence, heading, list item, table cell, blockquote, image caption and HTML text node into ${tgt}. Never leave a sentence in ${src}, never summarize, never skip a paragraph.`,
+			'- Preserve ALL Markdown formatting exactly (headings, lists, bold, italic, tables, blockquotes, links, HTML tags and attributes)',
+			'- Every <x id="N"/> tag is a placeholder for code, a URL or an image. Copy each one exactly once, unchanged, at the matching position. Do not add, drop, renumber or reformat them.',
+			'- Keep code identifiers, gene/protein symbols, file names, commands, numbers and citations unchanged',
 			'- Do not add, remove, or reorder any structural elements',
-			'- Translate only the natural language text content',
-			'- Do not wrap the output in code fences or add any extra text',
+			style,
+			'- Do not wrap the output in code fences, do not add notes or explanations',
 			'- Output ONLY the translated Markdown, nothing else',
 			glossaryText
 		].join('\n');
 	}
 
-	return `You are a professional translator. Translate the following text from ${src} to ${tgt}. Do not add a trailing period/dot that was not in the original. Output ONLY the translation, nothing else.${glossaryText}`;
+	return `You are a professional translator of university textbooks. Translate the following text from ${src} to ${tgt}. Translate it completely; do not leave any ${src} words except proper nouns, code or symbols. Do not add a trailing period/dot that was not in the original. Output ONLY the translation, nothing else.${glossaryText}`;
 }
+
+// ── Translation validation ─────────────────────────────────────────────────
+
+const HANGUL_RE = /[가-힯ᄀ-ᇿ㄰-㆏]/g;
+const LATIN_RE = /[A-Za-z]/g;
+const HAN_RE = /[一-鿿]/g;
+const PLACEHOLDER_RE = /<x id="\d+"\/>/g;
+const ENGLISH_FUNCTION_WORDS_RE = /\b(the|and|of|to|is|are|was|were|in|that|with|for|this|by|as|it|be|from|which)\b/gi;
+const QUOTED_RE = /"[^"\n]*"|“[^”\n]*”/g;
+// Reference-list entries: "Smith et al.", "Ji, Y.", "Zhou & Troyanskaya", DOIs
+const CITATION_RE = /et al\.|\bdoi\b|\b[A-Z][a-z]+,\s+[A-Z]\.|\b[A-Z][a-z]+ & [A-Z][a-z]+/;
+
+function proseOnly(text: string): string {
+	return text
+		.replace(PLACEHOLDER_RE, ' ')
+		// Only real tags: comparisons like "<40 kb ... >1 kb" are prose
+		.replace(/<\/?[a-zA-Z][^<>\n]*>/g, ' ')
+		.replace(/\$\$[\s\S]*?\$\$/g, ' ')
+		.replace(/\$[^$\n]+\$/g, ' ')
+		.replace(/https?:\/\/\S+/g, ' ')
+		// Parenthesized terms are allowed to stay in the other language, e.g. 전사체(transcriptome)
+		.replace(/\([^()\n]{0,80}\)/g, ' ');
+}
+
+/**
+ * Check a translated chunk against its source. Returns a description of the
+ * problem, or null if the translation looks complete.
+ */
+function validateTranslation(source: string, translated: string, sourceLang: string, targetLang: string): string | null {
+	if (!translated.trim()) return 'the output was empty';
+
+	const srcPlaceholders: string[] = (source.match(PLACEHOLDER_RE) || []).sort();
+	const outPlaceholders: string[] = (translated.match(PLACEHOLDER_RE) || []).sort();
+	// Mangled variants such as <x id="28"> or <x id="placeholder"/> would not be restored
+	if ((translated.match(/<x\b[^>]*>/g) || []).length !== outPlaceholders.length) {
+		return 'some placeholder tags were altered; copy each <x id="N"/> tag exactly as written';
+	}
+	if (srcPlaceholders.join() !== outPlaceholders.join()) {
+		const missing = srcPlaceholders.filter(p => !outPlaceholders.includes(p));
+		return missing.length > 0
+			? `these placeholder tags are missing: ${missing.join(' ')}`
+			: 'placeholder tags were duplicated or invented';
+	}
+
+	const srcProse = proseOnly(source);
+	const outProse = proseOnly(translated);
+	const srcLetters = (srcProse.match(HANGUL_RE) || []).length + (srcProse.match(LATIN_RE) || []).length;
+	// Chunks that are almost all code/placeholders have nothing to check
+	if (srcLetters < 20) return null;
+
+	// The chunk must be in the target language. Quoted examples and reference
+	// entries legitimately stay in the original language, so only fail when a
+	// large share of the chunk, or a whole long paragraph, was left as is.
+	let totalLetters = 0;
+	let untranslatedLetters = 0;
+	for (const para of outProse.replace(QUOTED_RE, ' ').split(/\n\s*\n/)) {
+		const hangul = (para.match(HANGUL_RE) || []).length;
+		const latin = (para.match(LATIN_RE) || []).length;
+		totalLetters += hangul + latin;
+		if (hangul + latin < 30 || CITATION_RE.test(para)) continue;
+		// Latin-script text only counts as untranslated if it reads as English
+		// (quotes in German, Latin etc. may stay); a few Korean words can be
+		// legitimate examples quoted in English text.
+		const englishWords = (para.match(ENGLISH_FUNCTION_WORDS_RE) || []).length;
+		const untranslated = targetLang === 'ko'
+			? hangul < latin * 0.3 && englishWords >= 3
+			: hangul > latin * 0.15;
+		if (!untranslated) continue;
+		if (hangul + latin >= 300) return `this paragraph was left untranslated: "${para.trim().slice(0, 120)}"`;
+		untranslatedLetters += hangul + latin;
+	}
+	if (untranslatedLetters > totalLetters * 0.25) return 'a large part of the text was left untranslated';
+
+	const srcHan = new Set(srcProse.match(HAN_RE) || []);
+	const newHan = [...new Set(outProse.match(HAN_RE) || [])].filter(c => !srcHan.has(c));
+	if (newHan.length > 0) {
+		return `Chinese characters appeared in the output (${newHan.slice(0, 10).join('')}); write those words in ${targetLang === 'ko' ? 'Hangul' : 'English'}`;
+	}
+
+	// Length sanity check (Korean text is roughly 2-3x denser than English);
+	// short chunks such as lone headings vary too much to judge
+	if (srcLetters < 200) return null;
+	const ratio = outProse.trim().length / Math.max(srcProse.trim().length, 1);
+	const [min, max] = sourceLang === 'en' && targetLang === 'ko' ? [0.2, 1.5] : [1.0, 6];
+	if (ratio < min) return 'the output is much shorter than the source; some content was dropped';
+	if (ratio > max) return 'the output is much longer than the source; content was added or repeated';
+
+	return null;
+}
+
+// Sampling temperature per attempt. The quantized model occasionally samples a
+// token that is invalid UTF-8, which llama-server rejects with HTTP 500;
+// another temperature usually avoids it.
+const CHUNK_TEMPERATURES = [0.1, 0.4, 0.7, 0.4, 0.7];
+// From this attempt on (or right after a Chinese-character leak), constrain
+// sampling to valid characters other than CJK ideographs. Kept as a fallback
+// because a blocked byte token is replaced by the next-best, possibly odd, syllable.
+const GRAMMAR_FROM_ATTEMPT = 3;
+const NO_HAN_GRAMMAR = 'root ::= [^\\u4E00-\\u9FFF]*';
 
 async function translateSingle(text: string, sourceLang: string, targetLang: string, isMarkdown = false, glossaryText = '', signal?: AbortSignal): Promise<string> {
 	const prompt = buildTranslatePrompt(sourceLang, targetLang, isMarkdown, glossaryText);
-	return callLLM(
-		[
-			{ role: 'system', content: prompt },
-			{ role: 'user', content: text }
-		],
-		{ temperature: 0.1, maxTokens: 2048, signal }
-	);
+	const messages = [
+		{ role: 'system' as const, content: prompt },
+		{ role: 'user' as const, content: text }
+	];
+	// Reasoning eats the token budget and leaves the answer empty; translation
+	// quality comes from the prompt and the validation loop instead.
+	const options = { temperature: 0.1, maxTokens: 8192, thinking: 'off' as const, signal };
+
+	if (!isMarkdown) return callLLM(messages, options);
+
+	let lastProblem = '';
+	let feedback = '';
+	let hanLeaked = false;
+	// The grammar would also forbid ideographs the source itself contains
+	const grammarAllowed = !text.match(HAN_RE);
+	for (const [attempt, temperature] of CHUNK_TEMPERATURES.entries()) {
+		const grammar = grammarAllowed && (hanLeaked || attempt >= GRAMMAR_FROM_ATTEMPT) ? NO_HAN_GRAMMAR : undefined;
+		let translated: string;
+		try {
+			translated = await callLLM(
+				feedback
+					? [...messages, { role: 'user' as const, content: `Your previous translation was rejected because ${feedback}. Translate the Markdown above again, completely and following every rule.` }]
+					: messages,
+				{ ...options, temperature, grammar }
+			);
+		} catch (err) {
+			if (signal?.aborted || !(err instanceof Error) || !err.message.startsWith('LLM API error 5')) throw err;
+			lastProblem = err.message;
+			continue;
+		}
+		const problem = validateTranslation(text, translated, sourceLang, targetLang);
+		if (!problem) return translated;
+		lastProblem = feedback = problem;
+		if (problem.startsWith('Chinese characters')) hanLeaked = true;
+	}
+	throw new Error(`Chunk failed after ${CHUNK_TEMPERATURES.length} attempts: ${lastProblem}`);
 }
 
 async function translateBatch(texts: string[], sourceLang: string, targetLang: string, glossaryText = '', signal?: AbortSignal): Promise<string[]> {
@@ -123,19 +257,23 @@ function protectMarkdown(markdown: string): { text: string; restore: (translated
 	result = result.replace(/(`[^`\n]+`)/g, (_, code) => protect(code));
 	result = result.replace(/(!\[[^\]]*\]\([^)]+\))/g, (_, img) => protect(img));
 	result = result.replace(/(\]\()([^)]+)(\))/g, (_, open, url, close) => `${open}${protect(url)}${close}`);
-	result = result.replace(/(<[a-zA-Z][^>]*>[\s\S]*?<\/[a-zA-Z]+>)/g, (match) => {
-		if (match.includes('\n') || /^<(div|table|thead|tbody|tr|td|th|details|summary|pre|iframe|script|style)/i.test(match)) {
-			return protect(match);
-		}
-		return match;
-	});
-	result = result.replace(/(<(?:br|hr|img)[^>]*\/?>)/gi, (_, tag) => protect(tag));
+	// HTML whose content is not prose is protected whole; everywhere else only
+	// the tags themselves are, so text inside <details>, tables etc. is translated
+	result = result.replace(/<!--[\s\S]*?-->/g, (comment) => protect(comment));
+	result = result.replace(/<(pre|script|style|code|svg|iframe|math)\b[\s\S]*?<\/\1>/gi, (block) => protect(block));
+	// Skip <x .../> placeholders, which look like tags
+	result = result.replace(/<\/?(?!x id=)[a-zA-Z][^<>]*>/g, (tag) => protect(tag));
 
 	function restore(translated: string): string {
-		return translated.replace(/<x id="(\d+)"\/>/g, (_, idStr) => {
-			const id = parseInt(idStr, 10);
-			return id < protected_.length ? protected_[id] : '';
-		});
+		// Protected blocks can contain earlier placeholders, so restore until stable
+		let result = translated;
+		for (let depth = 0; depth < 5 && /<x id="\d+"\/>/.test(result); depth++) {
+			result = result.replace(/<x id="(\d+)"\/>/g, (_, idStr) => {
+				const id = parseInt(idStr, 10);
+				return id < protected_.length ? protected_[id] : '';
+			});
+		}
+		return result;
 	}
 
 	return { text: result, restore };

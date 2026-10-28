@@ -16,6 +16,8 @@ export interface LLMOptions {
 	 * it costs noticeably more time than either neighbour for no clear gain.
 	 */
 	thinking?: 'off' | 'low' | 'xhigh';
+	/** GBNF grammar constraining the output (llama-server extension). */
+	grammar?: string;
 }
 
 export interface LLMStreamChunk {
@@ -69,6 +71,7 @@ async function chatRequest(
 				temperature: options.temperature,
 				max_tokens: options.maxTokens,
 				stream,
+				...(options.grammar ? { grammar: options.grammar } : {}),
 				chat_template_kwargs:
 					options.thinking === 'off'
 						? { enable_thinking: false }
