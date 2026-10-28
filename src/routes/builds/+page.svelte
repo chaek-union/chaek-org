@@ -44,10 +44,10 @@
 
 <svelte:head>
 	<title>{pageTitle}</title>
-	<link rel="stylesheet" href="/builds.css" />
+	<link rel="stylesheet" href="/builds.css?v=2" />
 </svelte:head>
 
-<Navbar {data} />
+<Navbar {data} fullWidth />
 
 <main class="container">
 	<header class="builds-header">
