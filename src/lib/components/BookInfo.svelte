@@ -5,12 +5,14 @@
 		id,
 		name,
 		lastUpdated,
-		hasPdf
+		hasPdf,
+		isDraft = false
 	}: {
 		id: string;
 		name: string;
 		lastUpdated?: string | Date;
 		hasPdf?: boolean;
+		isDraft?: boolean;
 	} = $props();
 
 	// YYYY.MM.DD keeps the date on one line in narrow columns
@@ -27,7 +29,9 @@
 	<span class="hanger hanger-right" aria-hidden="true"></span>
 
 	<h3 class="book-title" title={name}>
-		<a href="/books/{id}">{name}</a>
+		<a href="/books/{id}"
+			>{#if isDraft}<span class="badge-draft">{$t('books.draft')}</span>{/if}{name}</a
+		>
 	</h3>
 
 	{#if formattedDate}
@@ -150,6 +154,20 @@
 
 	.book-title a:hover {
 		color: var(--color-primary);
+	}
+
+	/* Same colours as the draft badge on the cover */
+	.badge-draft {
+		display: inline-block;
+		margin-right: 0.35em;
+		padding: 0 0.4em;
+		border-radius: 4px;
+		background: #f2b544;
+		color: #3d2a06;
+		font-size: 0.72em;
+		font-weight: 700;
+		line-height: 1.55;
+		vertical-align: 0.12em;
 	}
 
 	.book-date {
