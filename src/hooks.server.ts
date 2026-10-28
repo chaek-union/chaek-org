@@ -115,6 +115,18 @@ const devSessionHandle: Handle = async ({ event, resolve }) => {
 const staticFileHandle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
+	// Files of hidden books are only served to signed-in members
+	let cacheControl = 'public, max-age=3600';
+	const isBookFile = pathname.startsWith('/books/') && /^\/books\/[^\/]+\/.+\..+$/.test(pathname);
+	if (isBookFile) {
+		const { getBookAccess, bookCacheControl } = await import('$lib/server/book-access');
+		const access = await getBookAccess(pathname.split('/')[2], event.locals);
+		if (access === 'denied') {
+			return new Response('Not found', { status: 404 });
+		}
+		cacheControl = bookCacheControl(access);
+	}
+
 	// Serve PDFs and search indexes from static/books directory
 	if (pathname.startsWith('/books/') && (pathname.endsWith('.pdf') || pathname.endsWith('search-index.json'))) {
 		const filePath = path.join(process.cwd(), 'static', pathname);
@@ -129,7 +141,7 @@ const staticFileHandle: Handle = async ({ event, resolve }) => {
 				return new Response(content, {
 					headers: {
 						'Content-Type': contentType,
-						'Cache-Control': 'public, max-age=3600'
+						'Cache-Control': cacheControl
 					}
 				});
 			}
@@ -184,7 +196,7 @@ const staticFileHandle: Handle = async ({ event, resolve }) => {
 						return new Response(content, {
 							headers: {
 								'Content-Type': contentType,
-								'Cache-Control': 'public, max-age=3600'
+								'Cache-Control': cacheControl
 							}
 						});
 					}

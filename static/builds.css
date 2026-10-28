@@ -172,3 +172,45 @@ header {
 		font-size: 1.25rem;
 	}
 }
+
+/* Two-option switch on the book management tab */
+.segmented {
+	display: inline-flex;
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.segmented button {
+	padding: 0.35rem 0.8rem;
+	border: none;
+	background: white;
+	color: var(--text-secondary);
+	font-family: inherit;
+	font-size: 0.85rem;
+	cursor: pointer;
+	transition: background 0.15s, color 0.15s;
+}
+
+.segmented button + button {
+	border-left: 1px solid var(--border-color);
+}
+
+.segmented button:hover:not(.active):not(:disabled) {
+	background: #f5f7f7;
+}
+
+.segmented button.active {
+	background: var(--color-primary);
+	color: white;
+	font-weight: 600;
+}
+
+.segmented button:disabled {
+	cursor: wait;
+}
+
+.segmented button:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: -2px;
+}

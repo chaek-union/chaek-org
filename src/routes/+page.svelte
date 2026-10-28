@@ -40,13 +40,16 @@
 
 	let searchQuery = $state('');
 	let filterPdf = $state(false);
+	let filterPublished = $state(false);
 
 	function resetSearch() {
 		searchQuery = '';
 		filterPdf = false;
+		filterPublished = false;
 	}
 
 	const pdfCount = $derived(data.books.filter((b) => b.hasPdf).length);
+	const publishedCount = $derived(data.books.filter((b) => !b.isDraft).length);
 
 	const filteredBooks = $derived(
 		data.books.filter((book) => {
@@ -56,6 +59,9 @@
 				}
 			}
 			if (filterPdf && !book.hasPdf) {
+				return false;
+			}
+			if (filterPublished && book.isDraft) {
 				return false;
 			}
 			return true;
@@ -134,12 +140,23 @@
 			</div>
 			<div class="search-filters">
 				<label class="filter-checkbox">
-					<input type="checkbox" checked={!filterPdf} onchange={() => (filterPdf = false)} />
+					<input
+						type="checkbox"
+						checked={!filterPdf && !filterPublished}
+						onchange={() => {
+							filterPdf = false;
+							filterPublished = false;
+						}}
+					/>
 					<span>{$t('filter.allBooks')} ({data.books.length})</span>
 				</label>
 				<label class="filter-checkbox">
 					<input type="checkbox" bind:checked={filterPdf} />
 					<span>{$t('filter.withPdf')} ({pdfCount})</span>
+				</label>
+				<label class="filter-checkbox">
+					<input type="checkbox" bind:checked={filterPublished} />
+					<span>{$t('filter.publishedOnly')} ({publishedCount})</span>
 				</label>
 			</div>
 		</div>
@@ -150,7 +167,7 @@
 				<div class="shelf-row shelf-empty">
 					<div class="shelf-container empty-note">
 						<div class="empty-card">
-							{#if searchQuery.trim() || filterPdf}
+							{#if searchQuery.trim() || filterPdf || filterPublished}
 								<p>{$t('books.noMatch')}</p>
 								<button type="button" class="empty-reset" onclick={resetSearch}>
 									{$t('books.resetSearch')}
@@ -167,7 +184,13 @@
 					<div class="shelf-row" style="--columns: {columns}">
 						<div class="shelf-container shelf-columns shelf-books">
 							{#each row as book (book.id)}
-								<BookCover id={book.id} name={book.name} hasCover={book.hasCover} />
+								<BookCover
+									id={book.id}
+									name={book.name}
+									hasCover={book.hasCover}
+									isDraft={book.isDraft}
+									isHidden={book.isHidden}
+								/>
 							{/each}
 						</div>
 						<div class="shelf" aria-hidden="true"><div class="shelf-middle"></div></div>

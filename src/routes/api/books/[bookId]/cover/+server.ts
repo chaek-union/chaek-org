@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getBookCover } from '$lib/server/books';
 import { getCoverThumbnail } from '$lib/server/covers';
+import { getBookAccess, bookCacheControl } from '$lib/server/book-access';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -19,7 +20,12 @@ const CONTENT_TYPES: Record<string, string> = {
  * Serve a card-sized thumbnail of the cover declared by the `cover` field in
  * book.json, falling back to the original image if thumbnailing fails.
  */
-export const GET: RequestHandler = async ({ params, url, request }) => {
+export const GET: RequestHandler = async ({ params, url, request, locals }) => {
+	const access = await getBookAccess(params.bookId, locals);
+	if (access === 'denied') {
+		throw error(404, 'Cover not found');
+	}
+
 	const srcPath = await getBookCover(params.bookId, url.searchParams.get('lang') ?? undefined);
 	if (!srcPath) {
 		throw error(404, 'Cover not found');
@@ -36,7 +42,7 @@ export const GET: RequestHandler = async ({ params, url, request }) => {
 	const etag = `"${stats.size.toString(16)}-${stats.mtimeMs.toString(16)}"`;
 	const headers = {
 		'Content-Type': CONTENT_TYPES[path.extname(filePath).toLowerCase()],
-		'Cache-Control': 'public, max-age=3600',
+		'Cache-Control': bookCacheControl(access),
 		ETag: etag
 	};
 

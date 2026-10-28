@@ -7,7 +7,7 @@
 	"nav": {
 		"home": "Home",
 		"backToList": "Back to list",
-		"builds": "Build Logs",
+		"builds": "Admin",
 		"categories": "Categories",
 		"myLibrary": "My Library",
 		"contribute": "Contribute",
@@ -23,7 +23,8 @@
 	},
 	"filter": {
 		"allBooks": "All Textbooks",
-		"withPdf": "With PDF"
+		"withPdf": "With PDF",
+		"publishedOnly": "Published only"
 	},
 	"books": {
 		"title": "Textbooks",
@@ -34,7 +35,9 @@
 		"available": "available",
 		"readOnline": "Read",
 		"download": "PDF",
-		"openSource": "Open Source"
+		"openSource": "Open Source",
+		"draft": "Draft",
+		"hidden": "Hidden"
 	},
 	"auth": {
 		"signIn": "Sign in with GitHub",
@@ -48,7 +51,7 @@
 		"suffix": ""
 	},
 	"builds": {
-		"title": "Build Logs",
+		"title": "Admin",
 		"allBuilds": "All Builds",
 		"bookName": "Book Name",
 		"status": "Status",
@@ -95,5 +98,15 @@
 		"openSource": "Open Source License",
 		"privacy": "Privacy Policy",
 		"copyright": "Open Source text:book"
+	},
+	"manage": {
+		"tab": "Books",
+		"status": "Status",
+		"visibility": "Visibility",
+		"draft": "Draft",
+		"published": "Published",
+		"hidden": "Hidden",
+		"visible": "Visible",
+		"saveFailed": "Couldn’t save. Try again."
 	}
 }

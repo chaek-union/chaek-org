@@ -1,5 +1,6 @@
 import { error } from "@sveltejs/kit";
 import { getBookMetadata, safeJoin } from "$lib/server/books";
+import { getBookAccess } from "$lib/server/book-access";
 import { parseSummary, getBookRoot } from "$lib/server/summary-parser";
 import { processMarkdown } from "$lib/server/markdown-processor";
 import { translatePage, translateNavigation, translateText } from "$lib/server/translate";
@@ -26,11 +27,16 @@ const rehypePlugins = [
     [rehypeAutolinkHeadings, { behavior: "wrap" }],
 ] as unknown as CompileOptions["rehypePlugins"];
 
-export const load: PageServerLoad = async ({ params, cookies }) => {
+export const load: PageServerLoad = async ({ params, cookies, locals }) => {
     const book = await getBookMetadata(params.bookId);
 
     if (!book) {
         throw error(404, "교재를 찾을 수 없습니다");
+    }
+
+    // Hidden books are only readable by signed-in members
+    if ((await getBookAccess(params.bookId, locals)) === "denied") {
+        throw error(401, "로그인한 멤버만 볼 수 있는 교재입니다");
     }
 
     // Parse SUMMARY.md to get navigation

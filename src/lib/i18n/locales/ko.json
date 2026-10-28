@@ -7,7 +7,7 @@
 	"nav": {
 		"home": "홈",
 		"backToList": "목록으로 돌아가기",
-		"builds": "빌드 로그",
+		"builds": "관리",
 		"categories": "카테고리",
 		"myLibrary": "내 서재",
 		"contribute": "기여하기",
@@ -23,7 +23,8 @@
 	},
 	"filter": {
 		"allBooks": "전체 교재",
-		"withPdf": "PDF 제공"
+		"withPdf": "PDF 제공",
+		"publishedOnly": "출판된 교재만"
 	},
 	"books": {
 		"title": "교재 목록",
@@ -34,7 +35,9 @@
 		"available": "개 교재",
 		"readOnline": "읽기",
 		"download": "다운로드",
-		"openSource": "오픈소스"
+		"openSource": "오픈소스",
+		"draft": "초안",
+		"hidden": "숨김"
 	},
 	"auth": {
 		"signIn": "GitHub 로그인",
@@ -48,7 +51,7 @@
 		"suffix": "의 기여자들에 의해 관리됩니다"
 	},
 	"builds": {
-		"title": "빌드 로그",
+		"title": "관리",
 		"allBuilds": "모든 빌드",
 		"bookName": "교재명",
 		"status": "상태",
@@ -95,5 +98,15 @@
 		"openSource": "오픈소스 리어신스",
 		"privacy": "개인정보 처리방침",
 		"copyright": "Open Source text:book"
+	},
+	"manage": {
+		"tab": "교재 관리",
+		"status": "출판 상태",
+		"visibility": "공개 여부",
+		"draft": "초안",
+		"published": "출판",
+		"hidden": "숨김",
+		"visible": "공개",
+		"saveFailed": "저장하지 못했습니다. 다시 시도해 주세요."
 	}
 }

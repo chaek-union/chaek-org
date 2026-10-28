@@ -84,6 +84,17 @@ CREATE TABLE IF NOT EXISTS translation_log_lines (
     UNIQUE(log_id, line_number)
 );
 
+-- Per-book publishing settings set on the admin page. NULL means "not set
+-- here": the book's book.json value applies (draft / hidden), and failing
+-- that the book is published and visible.
+CREATE TABLE IF NOT EXISTS book_settings (
+    book_id VARCHAR(255) PRIMARY KEY,
+    is_draft BOOLEAN,
+    is_hidden BOOLEAN,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(255)
+);
+
 -- Index for faster queries
 CREATE INDEX IF NOT EXISTS idx_translation_logs_book_id ON translation_logs(book_id);
 CREATE INDEX IF NOT EXISTS idx_translation_logs_status ON translation_logs(status);

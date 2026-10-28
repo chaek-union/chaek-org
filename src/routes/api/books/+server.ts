@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { getBooks } from '$lib/server/books';
 import { getBooksWithLatestBuild } from '$lib/server/db/builds';
 import { getLatestTranslationStatuses } from '$lib/server/db/translation-logs';
+import { getAllBookSettings, applyBookSettings } from '$lib/server/db/book-settings';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const session = await locals.auth();
@@ -13,10 +14,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	try {
-		const [books, latestBuilds, latestTranslations] = await Promise.all([
+		const [books, latestBuilds, latestTranslations, settings] = await Promise.all([
 			getBooks(),
 			getBooksWithLatestBuild(),
-			getLatestTranslationStatuses()
+			getLatestTranslationStatuses(),
+			getAllBookSettings()
 		]);
 
 		const buildStatusMap = new Map(latestBuilds.map(b => [b.book_id, b.status]));
@@ -25,7 +27,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		const booksWithStatus = books.map(book => {
 			const translation = translationMap.get(book.id);
 			return {
-				...book,
+				...applyBookSettings(book, settings),
 				latestBuildStatus: buildStatusMap.get(book.id) || null,
 				latestTranslationStatus: translation?.status || null,
 				lastTranslatedAt: translation?.completedAt || null

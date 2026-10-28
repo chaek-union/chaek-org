@@ -127,6 +127,11 @@
 - `stdout`, `stderr`, `error_message`
 - `started_at`, `completed_at`, `triggered_by`
 
+### book_settings 테이블
+- 관리 페이지(`/builds?tab=manage`)에서 지정한 교재별 출판 설정
+- `book_id`, `is_draft`, `is_hidden` (NULL이면 book.json 값을 따름), `updated_at`, `updated_by`
+- 우선순위: book_settings > book.json(`draft`, `hidden`) > 기본값(출판, 공개)
+
 ### pdf_builds 테이블
 - PDF 빌드 로그 저장
 - `book_id`, `book_name`, `repo_url`, `status` (running/success/failed)
@@ -192,9 +197,15 @@
 {
   "title": "교재 제목",
   "root": "./docs",  // 선택사항, 기본값 "."
-  "cover": "assets/cover.png"  // 선택사항, 표지 이미지 경로
+  "cover": "assets/cover.png",  // 선택사항, 표지 이미지 경로
+  "draft": true,     // 선택사항: 초안 (표지에 "초안" 표시, "출판된 교재만" 필터에서 제외)
+  "hidden": false    // 선택사항: 숨김 (로그인한 멤버만 볼 수 있음)
 }
 ```
+
+- `draft`/`hidden`은 chaek-kit(`npx @chaek-org/kit create`)이 교재 생성 시 물어보고 기록
+- 관리 페이지의 교재 관리 탭에서 바꾼 값이 book.json보다 우선
+- 숨김 교재는 로그인한 멤버만 볼 수 있음: 비로그인 시 메인 목록에서 빠지고, 교재 페이지는 401, 이미지·PDF·검색 인덱스·표지·챗봇 API는 404 (`src/lib/server/book-access.ts`)
 
 - `cover`는 저장소 루트(book.json 위치) 기준 상대 경로 (`root`와 무관). 이미지는 저장소 내 어디든 둘 수 있음
 - 언어별 표지: `"cover": { "ko": "assets/cover_ko.jpg", "en": "assets/cover_en.jpg" }` (요청 언어가 없으면 다른 언어로 대체)

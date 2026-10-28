@@ -3,6 +3,7 @@ import { parseSummary, getBookRoot, type NavItem } from '$lib/server/summary-par
 import { callLLMStream, type LLMMessage } from '$lib/server/llm';
 import { retrieveContext } from '$lib/server/retrieval';
 import { bookExists } from '$lib/server/books';
+import { getBookAccess } from '$lib/server/book-access';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -27,12 +28,12 @@ function jsonError(message: string, status: number) {
 	});
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const body = await request.json();
 		const bookId = body?.bookId;
 
-		if (!(await bookExists(bookId))) {
+		if (!(await bookExists(bookId)) || (await getBookAccess(bookId, locals)) === 'denied') {
 			return jsonError('Book not found', 404);
 		}
 		if (!Array.isArray(body.messages)) {

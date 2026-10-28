@@ -8,6 +8,10 @@ export interface Book {
     lastUpdated?: Date;
     hasPdf?: boolean;
     hasCover?: boolean;
+    // Publishing state declared in book.json (set by chaek-kit); the admin
+    // page can override both (see db/book-settings.ts)
+    isDraft: boolean;
+    isHidden: boolean;
 }
 
 export const BOOKS_DIR = path.join(process.cwd(), "books");
@@ -47,6 +51,24 @@ interface BookJson {
     // Path to the cover image, relative to the repository root (where
     // book.json lives). Either a single path or one per locale.
     cover?: string | Record<string, string>;
+    // Unfinished book: shown with a draft label on its cover
+    draft?: boolean;
+    // Left off the main page for visitors who aren't signed in
+    hidden?: boolean;
+}
+
+/**
+ * Read the publishing flags (draft / hidden) declared in a book's book.json
+ */
+export async function getBookFlags(bookId: string): Promise<{ isDraft: boolean; isHidden: boolean }> {
+    try {
+        const bookJson: BookJson = JSON.parse(
+            await fs.readFile(path.join(BOOKS_DIR, bookId, "book.json"), "utf-8"),
+        );
+        return { isDraft: bookJson.draft === true, isHidden: bookJson.hidden === true };
+    } catch {
+        return { isDraft: false, isHidden: false };
+    }
 }
 
 const COVER_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"]);
@@ -185,6 +207,7 @@ export async function getBooks(): Promise<Book[]> {
                         lastUpdated: stats.mtime,
                         hasPdf,
                         hasCover: (await getBookCover(entry.name)) !== null,
+                        ...(await getBookFlags(entry.name)),
                     });
                 }
             }
@@ -225,6 +248,7 @@ export async function getBookMetadata(bookId: string): Promise<Book | null> {
             id: bookId,
             name: bookTitle,
             lastUpdated: stats.mtime,
+            ...(await getBookFlags(bookId)),
         };
     } catch {
         return null;

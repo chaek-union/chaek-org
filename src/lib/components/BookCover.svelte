@@ -1,7 +1,14 @@
 <script lang="ts">
-	import { locale } from '$lib/i18n';
+	import { t, locale } from '$lib/i18n';
 
-	let { id, name, hasCover }: { id: string; name: string; hasCover?: boolean } = $props();
+	let {
+		id,
+		name,
+		hasCover,
+		isDraft = false,
+		isHidden = false
+	}: { id: string; name: string; hasCover?: boolean; isDraft?: boolean; isHidden?: boolean } =
+		$props();
 
 	function hashColor(str: string): string {
 		let hash = 0;
@@ -24,6 +31,12 @@
 			<img src="/api/books/{id}/cover?lang={$locale}" alt={name} loading="lazy" />
 		{:else}
 			<span class="cover-title">{name}</span>
+		{/if}
+		{#if isDraft || isHidden}
+			<span class="cover-badges">
+				{#if isDraft}<span class="badge badge-draft">{$t('books.draft')}</span>{/if}
+				{#if isHidden}<span class="badge badge-hidden">{$t('books.hidden')}</span>{/if}
+			</span>
 		{/if}
 	</a>
 </div>
@@ -111,6 +124,38 @@
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+	}
+
+	/* Status labels pinned to the cover's top-right corner */
+	.cover-badges {
+		position: absolute;
+		z-index: 2;
+		top: 8px;
+		right: 8px;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 4px;
+	}
+
+	.badge {
+		padding: 2px 7px;
+		border-radius: 4px;
+		font-size: 0.68rem;
+		font-weight: 700;
+		line-height: 1.5;
+		letter-spacing: 0.02em;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	}
+
+	.badge-draft {
+		background: #f2b544;
+		color: #3d2a06;
+	}
+
+	.badge-hidden {
+		background: rgba(30, 30, 30, 0.82);
+		color: #fff;
 	}
 
 	.cover-title {
